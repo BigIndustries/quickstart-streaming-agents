@@ -2,8 +2,8 @@
 set -e
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-FUNCTION_NAME="mcp-email-server"
-API_NAME="mcp-email-server-api"
+FUNCTION_NAME="lambda-mcp-server"
+API_NAME="lambda-mcp-api"
 REGION="${AWS_REGION:-us-east-1}"
 RUNTIME="python3.12"
 TIMEOUT=30
