@@ -37,14 +37,14 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
 > The credentials below are not required in instructor-led workshops — they will be provided for you.
 
 - **LLM Access:** AWS Bedrock API keys **OR** Azure OpenAI endpoint + API key
-  - **Easy key creation:** Run `uv run api-keys create` to quickly auto-generate credentials
 
 > [!WARNING]
 >
 > **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
 
 - **Remote MCP server backend:** Lab 3 calls a remote MCP server for HTTP fetch and HTTP post (vessel catalog lookup + dispatch). `uv run deploy` will prompt you to choose:
-  - **Confluent-hosted remote MCP server (Recommended)** — No setup on your end; obtain a token by asking your workshop presenter, or, if you're a Confluent employee, see `go/mcp-keys` or `#help-tmm`.
+  - **Confluent-hosted remote MCP server** — No setup on your end; obtain a token by asking your workshop presenter.
+- **Big Industries-hosted remote MCP server (Recommended)** — No setup on your end; obtain a token by asking your workshop presenter.
   - **Zapier** — a third-party MCP server. See [Zapier-Setup.md](./assets/pre-setup/Zapier-Setup.md) for setup. For workshops, prefer the Confluent-hosted remote MCP server.
 
   To switch backends after deploying, run `uv run destroy` first, then re-deploy.
@@ -71,7 +71,7 @@ uv run deploy
 
 The deployment script will prompt you for your:
 - Cloud provider (AWS/Azure)
-- LLM API keys (Bedrock keys or Azure OpenAI endpoint/key - run `uv run api-keys create` beforehand or see [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for more info)
+- LLM API keys (Bedrock keys or Azure OpenAI endpoint/key
 
 ## Usecase Walkthrough
 

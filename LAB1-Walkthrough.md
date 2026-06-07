@@ -66,7 +66,7 @@ Once you've deployed Lab1, open the [SQL Workspace](https://confluent.cloud/go/f
 SELECT
   question,
   response
-FROM (SELECT 'How was the state of Colorado founded?' as question) t,
+FROM (SELECT 'When was the city of Antwerp founded and how?' as question) t,
 LATERAL TABLE(ML_PREDICT('llm_textgen_model', question, MAP['debug', 'true'])) as r(response);
 ```
 
