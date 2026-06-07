@@ -286,7 +286,7 @@ def main():
         print("✓ Confluent CLI logged in")
 
         # Step 1: Select cloud provider
-        cloud = prompt_choice("Select cloud provider:", ["aws", "azure"])
+        cloud = prompt_choice("Select cloud provider:", ["aws", "azure"], default=1)
 
         # Step 2: Set cloud region (hardcoded for simplicity)
         # Note: AWS MUST use us-east-1, Azure MUST use eastus2 for workshop mode compatibility
@@ -298,7 +298,7 @@ def main():
 
         # Step 3: Generate Confluent API keys (optional)
         generate = (
-            input("\nGenerate new Confluent Cloud API keys? (y/n): ").strip().lower()
+            input("\nGenerate new Confluent Cloud API keys? (y/n) [default: n]: ").strip().lower() or "n"
         )
         if generate == "y":
             api_key, api_secret = generate_confluent_api_keys()
@@ -319,7 +319,7 @@ def main():
             "Lab 4: FEMA Fraud Detection",
             "All Labs (Labs 1, 2, 3, and 4)",
         ]
-        env_choice = prompt_choice("What would you like to deploy?", deploy_options)
+        env_choice = prompt_choice("What would you like to deploy?", deploy_options, default=5)
 
         # Map user-friendly choice to deployment targets (core auto-included for labs)
         if env_choice == "Lab 1: MCP Tool Calling":
@@ -347,9 +347,19 @@ def main():
         ):
             backend_choice = prompt_choice(
                 "Remote MCP server backend:",
-                ["Confluent-hosted remote MCP server (Recommended)", "Zapier"],
+                [
+                    "Confluent-hosted remote MCP server (Recommended)",
+                    "Big Industries managed MCP server",
+                    "Zapier",
+                ],
+                default=2,
             )
-            mcp_backend = "zapier" if backend_choice == "Zapier" else "lambda"
+            if backend_choice == "Zapier":
+                mcp_backend = "zapier"
+            elif backend_choice == "Big Industries managed MCP server":
+                mcp_backend = "bigind"
+            else:
+                mcp_backend = "lambda"
 
         # Step 5: Prompt for required credentials
         print("\n--- Credential Configuration ---")
@@ -562,12 +572,44 @@ def main():
                     creds.get("TF_VAR_zapier_token", ""),
                 )
                 _save_env_safe(creds_file, "TF_VAR_zapier_token", zapier_token)
+            elif mcp_backend == "bigind":
+                bigind_mcp_token = prompt_with_default(
+                    "Big Industries MCP Server Token",
+                    creds.get("TF_VAR_bigind_mcp_token", ""),
+                )
+                _save_env_safe(creds_file, "TF_VAR_bigind_mcp_token", bigind_mcp_token)
             else:
                 mcp_token = prompt_with_default(
                     "Remote MCP Server Token (Confluent employees: see go/mcp-keys or #help-tmm; workshop participants: ask your presenter)",
                     creds.get("TF_VAR_mcp_token", ""),
                 )
                 _save_env_safe(creds_file, "TF_VAR_mcp_token", mcp_token)
+
+        # MongoDB credentials (Lab 2 / Lab 3)
+        if (
+            "lab2-vector-search" in envs_to_deploy
+            or "lab3-agentic-fleet-management" in envs_to_deploy
+        ):
+            print("\n--- MongoDB Configuration ---")
+            print("Leave blank to use the Confluent-managed workshop defaults.")
+            mongodb_conn = prompt_with_default(
+                "MongoDB Connection String",
+                creds.get("TF_VAR_mongodb_connection_string", ""),
+            )
+            mongodb_user = prompt_with_default(
+                "MongoDB Username",
+                creds.get("TF_VAR_mongodb_username", ""),
+            )
+            mongodb_pass = prompt_with_default(
+                "MongoDB Password",
+                creds.get("TF_VAR_mongodb_password", ""),
+            )
+            if mongodb_conn:
+                _save_env_safe(creds_file, "TF_VAR_mongodb_connection_string", mongodb_conn)
+            if mongodb_user:
+                _save_env_safe(creds_file, "TF_VAR_mongodb_username", mongodb_user)
+            if mongodb_pass:
+                _save_env_safe(creds_file, "TF_VAR_mongodb_password", mongodb_pass)
 
         # Set cloud region and cloud provider
         _save_env_safe(creds_file, "TF_VAR_cloud_region", region)
@@ -615,14 +657,28 @@ def main():
                 print(f"⚠ Could not validate Remote MCP configuration: {e}")
                 print("  (This is advisory only - deployment will continue)")
 
-        # Validate workshop MongoDB (lab2 / lab3 use pre-populated workshop data by default)
+        # Validate MongoDB — use custom credentials from credentials.env if provided,
+        # otherwise fall back to the pre-populated workshop defaults.
         if needs_mongodb:
             import logging
-            from scripts.common.test_mongodb_credentials import test_workshop_mongodb
+            from scripts.common.test_mongodb_credentials import (
+                test_mongodb_connection,
+                test_workshop_mongodb,
+            )
 
             _log = logging.getLogger("deploy.mongodb")
             _log.setLevel(logging.CRITICAL)
-            print("\nChecking workshop MongoDB demo data...")
+
+            custom_mongo_conn = temp_creds.get("TF_VAR_mongodb_connection_string", "")
+            custom_mongo_user = temp_creds.get("TF_VAR_mongodb_username", "")
+            custom_mongo_pass = temp_creds.get("TF_VAR_mongodb_password", "")
+            using_custom = bool(custom_mongo_conn and custom_mongo_user and custom_mongo_pass)
+
+            if using_custom:
+                print("\nChecking custom MongoDB credentials...")
+            else:
+                print("\nChecking workshop MongoDB demo data...")
+
             lab_map = {
                 "lab2-vector-search": "lab2",
                 "lab3-agentic-fleet-management": "lab3",
@@ -631,19 +687,32 @@ def main():
             for env_name, lab_key in lab_map.items():
                 if env_name not in envs_to_deploy:
                     continue
-                ok, err = test_workshop_mongodb(lab_key, cloud, logger=_log)
-                print(f"  {'✓' if ok else '✗'} Workshop MongoDB ({lab_key}/{cloud})")
+                if using_custom:
+                    ok, err = test_mongodb_connection(
+                        custom_mongo_conn, custom_mongo_user, custom_mongo_pass, logger=_log
+                    )
+                    label = "Custom"
+                else:
+                    ok, err = test_workshop_mongodb(lab_key, cloud, logger=_log)
+                    label = "Workshop"
+                err_detail = f" [{err}]" if not ok and err else ""
+                print(f"  {'✓' if ok else '✗'} {label} MongoDB ({lab_key}/{cloud}){err_detail}")
                 if not ok:
                     mongo_all_ok = False
             if not mongo_all_ok:
                 print()
-                print(
-                    "⚠️  WARNING: The workshop MongoDB demo data could not be reached."
-                )
-                print(
-                    "   This is a Confluent-managed resource. Contact the workshop team"
-                )
-                print("   or check your network connection.")
+                if using_custom:
+                    print("⚠️  WARNING: Could not connect to your MongoDB instance.")
+                    print("   Check TF_VAR_mongodb_connection_string, TF_VAR_mongodb_username,")
+                    print("   and TF_VAR_mongodb_password in credentials.env.")
+                else:
+                    print(
+                        "⚠️  WARNING: The workshop MongoDB demo data could not be reached."
+                    )
+                    print(
+                        "   This is a Confluent-managed resource. Contact the workshop team"
+                    )
+                    print("   or check your network connection.")
                 response = input("\nContinue anyway? (y/n): ").strip().lower()
                 if response != "y":
                     sys.exit(1)

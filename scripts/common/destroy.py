@@ -162,7 +162,7 @@ def main():
         print("✓ Confluent CLI logged in")
 
         # Step 1: Select cloud provider
-        cloud = prompt_choice("Select cloud provider to destroy:", ["aws", "azure"])
+        cloud = prompt_choice("Select cloud provider to destroy:", ["aws", "azure"], default=1)
 
         # Step 2: Always destroy all environments
         envs_to_destroy = [
@@ -190,7 +190,7 @@ def main():
             "\n⚠️  WARNING: This will permanently destroy all resources in the selected environments!"
         )
 
-        confirm = input("\nAre you sure you want to proceed? (y/n): ").strip().lower()
+        confirm = input("\nAre you sure you want to proceed? (y/n) [default: y]: ").strip().lower() or "y"
         if confirm != "y":
             print("Destroy cancelled.")
             sys.exit(0)

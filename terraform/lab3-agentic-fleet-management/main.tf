@@ -13,8 +13,8 @@ locals {
 
   # Cloud-specific MongoDB defaults
   mongodb_defaults = {
-    aws   = { conn = "mongodb+srv://cluster0.w9n3o45.mongodb.net/", user = "workshop-user", pass = "JHcZajJzWYwKe6dt" }
-    azure = { conn = "mongodb+srv://cluster0.iir6woe.mongodb.net/", user = "public_readonly_user", pass = "pE7xOkiKth2QqTKL" }
+    aws   = { conn = "mongodb+srv://cluster0.vqg04jw.mongodb.net/", user = "currentlondon2026_db_user", pass = "VyARxV0Pn7DEXaYn" }
+    azure = { conn = "mongodb+srv://cluster0.vqg04jw.mongodb.net/", user = "public_readonly_user", pass = "sB948mVgIYqwUloX" }
   }
 
   effective_mongodb_conn = var.mongodb_connection_string_lab3 != "" ? var.mongodb_connection_string_lab3 : local.mongodb_defaults[local.cloud_provider].conn
@@ -23,10 +23,11 @@ locals {
 
   # Remote MCP backend selection. Endpoints are hard-coded so users can't point
   # Flink at an arbitrary MCP server via tfvars.
-  mcp_lambda_endpoint     = "https://z04yuqut2a.execute-api.us-east-1.amazonaws.com/mcp"
-  mcp_zapier_endpoint     = "https://mcp.zapier.com/api/v1/connect"
-  effective_mcp_endpoint  = var.mcp_backend == "zapier" ? local.mcp_zapier_endpoint : local.mcp_lambda_endpoint
-  effective_mcp_token     = var.mcp_backend == "zapier" ? var.zapier_token : var.mcp_token
+  mcp_lambda_endpoint    = "https://z04yuqut2a.execute-api.us-east-1.amazonaws.com/mcp"
+  mcp_bigind_endpoint    = "https://lfb90lpu6c.execute-api.us-east-1.amazonaws.com/mcp"
+  mcp_zapier_endpoint    = "https://mcp.zapier.com/api/v1/connect"
+  effective_mcp_endpoint = var.mcp_backend == "zapier" ? local.mcp_zapier_endpoint : (var.mcp_backend == "bigind" ? local.mcp_bigind_endpoint : local.mcp_lambda_endpoint)
+  effective_mcp_token    = var.mcp_backend == "zapier" ? var.zapier_token : (var.mcp_backend == "bigind" ? var.bigind_mcp_token : var.mcp_token)
 }
 
 # Get organization data

@@ -630,6 +630,37 @@ def validate_mcp_lambda(token: str) -> Tuple[bool, List[str]]:
     return all_passed, messages
 
 
+def validate_mcp_bigind(token: str) -> Tuple[bool, List[str]]:
+    """
+    Validate Big Industries managed MCP server configuration.
+
+    Checks token format only — endpoint connectivity is not tested here because
+    the Lambda's authentication logic is internal (not IAM-based), so a generic
+    tools/list probe cannot reliably verify the token without knowing the exact
+    auth scheme the Lambda expects. The real test is whether Terraform can create
+    the Flink MCP connection successfully.
+
+    Args:
+        token: Big Industries MCP server bearer token
+
+    Returns:
+        Tuple of (all_checks_passed, list_of_messages)
+    """
+    messages = []
+    all_passed = True
+
+    if not token or len(token) < 10:
+        messages.append(
+            colorize("⚠️  Warning: Token appears to be invalid or too short", "yellow")
+        )
+        all_passed = False
+    else:
+        messages.append(colorize("✓ Token format looks valid", "green"))
+        messages.append("   Token will be verified when Terraform creates the Flink MCP connection.")
+
+    return all_passed, messages
+
+
 def validate_zapier(token: str) -> Tuple[bool, List[str]]:
     """
     Validate Zapier MCP Server configuration with Streamable HTTP.
@@ -807,11 +838,12 @@ Examples:
             ]
         )
         mcp_backend = (creds.get("TF_VAR_mcp_backend") or "lambda").lower()
-        has_mcp = bool(
-            creds.get("TF_VAR_zapier_token")
-            if mcp_backend == "zapier"
-            else creds.get("TF_VAR_mcp_token")
-        )
+        if mcp_backend == "zapier":
+            has_mcp = bool(creds.get("TF_VAR_zapier_token"))
+        elif mcp_backend == "bigind":
+            has_mcp = bool(creds.get("TF_VAR_bigind_mcp_token"))
+        else:
+            has_mcp = bool(creds.get("TF_VAR_mcp_token"))
 
         if has_mongo:
             validate_mongo = True
@@ -888,6 +920,22 @@ Examples:
                 all_services_passed = False
             else:
                 passed, messages = validate_zapier(zapier_token)
+                for msg in messages:
+                    print(msg)
+                if not passed:
+                    all_services_passed = False
+        elif backend == "bigind":
+            bigind_token = creds.get("TF_VAR_bigind_mcp_token", "")
+            if not bigind_token:
+                print(
+                    colorize(
+                        "✗ Big Industries MCP token not found in credentials.env", "red"
+                    )
+                )
+                print("  Missing: TF_VAR_bigind_mcp_token")
+                all_services_passed = False
+            else:
+                passed, messages = validate_mcp_bigind(bigind_token)
                 for msg in messages:
                     print(msg)
                 if not passed:

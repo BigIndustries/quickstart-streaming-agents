@@ -110,7 +110,10 @@ cloud_provider = "{provider}"
 
 
 def generate_lab1_tfvars_content(
-    mcp_token: str, mcp_backend: str = "lambda", zapier_token: str = ""
+    mcp_token: str,
+    mcp_backend: str = "lambda",
+    zapier_token: str = "",
+    bigind_mcp_token: str = "",
 ) -> str:
     """
     Generate terraform.tfvars content for Lab1 module.
@@ -120,8 +123,9 @@ def generate_lab1_tfvars_content(
 
     Args:
         mcp_token: Lambda Remote MCP server token
-        mcp_backend: Which backend to use ('lambda' or 'zapier')
+        mcp_backend: Which backend to use ('lambda', 'bigind', or 'zapier')
         zapier_token: Zapier Remote MCP server token (when mcp_backend == 'zapier')
+        bigind_mcp_token: Big Industries MCP server token (when mcp_backend == 'bigind')
 
     Returns:
         Formatted terraform.tfvars content
@@ -129,6 +133,7 @@ def generate_lab1_tfvars_content(
     return f"""# Lab1 Configuration
 mcp_backend = "{mcp_backend}"
 mcp_token = "{mcp_token}"
+bigind_mcp_token = "{bigind_mcp_token}"
 zapier_token = "{zapier_token}"
 """
 
@@ -165,6 +170,7 @@ def generate_lab3_tfvars_content(
     mongo_pass: Optional[str] = None,
     mcp_backend: str = "lambda",
     zapier_token: str = "",
+    bigind_mcp_token: str = "",
 ) -> str:
     """
     Generate terraform.tfvars content for Lab3 module.
@@ -177,8 +183,9 @@ def generate_lab3_tfvars_content(
         mongo_conn: MongoDB connection string (optional, for non-workshop mode)
         mongo_user: MongoDB username (optional, for non-workshop mode)
         mongo_pass: MongoDB password (optional, for non-workshop mode)
-        mcp_backend: Which backend to use ('lambda' or 'zapier')
+        mcp_backend: Which backend to use ('lambda', 'bigind', or 'zapier')
         zapier_token: Zapier Remote MCP server token (when mcp_backend == 'zapier')
+        bigind_mcp_token: Big Industries MCP server token (when mcp_backend == 'bigind')
 
     Returns:
         Formatted terraform.tfvars content
@@ -186,6 +193,7 @@ def generate_lab3_tfvars_content(
     content = f"""# Lab3 Configuration
 mcp_backend = "{mcp_backend}"
 mcp_token = "{mcp_token}"
+bigind_mcp_token = "{bigind_mcp_token}"
 zapier_token = "{zapier_token}"
 """
 
@@ -262,13 +270,19 @@ def write_tfvars_for_deployment(
     if "lab1-tool-calling" in envs_to_deploy:
         mcp_token = get_credential_value(creds, "mcp_token") or ""
         zapier_token = get_credential_value(creds, "zapier_token") or ""
+        bigind_mcp_token = get_credential_value(creds, "bigind_mcp_token") or ""
         mcp_backend = (get_credential_value(creds, "mcp_backend") or "lambda").lower()
-        active_token = zapier_token if mcp_backend == "zapier" else mcp_token
+        if mcp_backend == "zapier":
+            active_token = zapier_token
+        elif mcp_backend == "bigind":
+            active_token = bigind_mcp_token
+        else:
+            active_token = mcp_token
         if active_token:
             lab1_tfvars_path = (
                 root / "terraform" / "lab1-tool-calling" / "terraform.tfvars"
             )
-            content = generate_lab1_tfvars_content(mcp_token, mcp_backend, zapier_token)
+            content = generate_lab1_tfvars_content(mcp_token, mcp_backend, zapier_token, bigind_mcp_token)
             if write_tfvars_file(lab1_tfvars_path, content):
                 print(f"✓ Wrote {lab1_tfvars_path}")
 
@@ -290,8 +304,14 @@ def write_tfvars_for_deployment(
     if "lab3-agentic-fleet-management" in envs_to_deploy:
         mcp_token = get_credential_value(creds, "mcp_token") or ""
         zapier_token = get_credential_value(creds, "zapier_token") or ""
+        bigind_mcp_token = get_credential_value(creds, "bigind_mcp_token") or ""
         mcp_backend = (get_credential_value(creds, "mcp_backend") or "lambda").lower()
-        active_token = zapier_token if mcp_backend == "zapier" else mcp_token
+        if mcp_backend == "zapier":
+            active_token = zapier_token
+        elif mcp_backend == "bigind":
+            active_token = bigind_mcp_token
+        else:
+            active_token = mcp_token
 
         # MongoDB credentials are optional (uses terraform defaults)
         mongo_conn = get_credential_value(creds, "mongodb_connection_string")
@@ -306,7 +326,7 @@ def write_tfvars_for_deployment(
                 / "terraform.tfvars"
             )
             content = generate_lab3_tfvars_content(
-                mcp_token, mongo_conn, mongo_user, mongo_pass, mcp_backend, zapier_token
+                mcp_token, mongo_conn, mongo_user, mongo_pass, mcp_backend, zapier_token, bigind_mcp_token
             )
             if write_tfvars_file(lab3_tfvars_path, content):
                 print(f"✓ Wrote {lab3_tfvars_path}")

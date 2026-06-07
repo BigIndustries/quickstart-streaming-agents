@@ -10,23 +10,28 @@ Provides functions for:
 from typing import List
 
 
-def prompt_choice(prompt_text: str, options: List[str]) -> str:
+def prompt_choice(prompt_text: str, options: List[str], default: int = None) -> str:
     """
     Prompt user to select from numbered options.
 
     Args:
         prompt_text: Question or instruction to display
         options: List of options to choose from
+        default: 1-based index of the default option (used when user presses Enter)
 
     Returns:
         Selected option string
     """
     print(f"\n{prompt_text}")
     for i, option in enumerate(options, 1):
-        print(f"{i}. {option}")
+        marker = " (default)" if default == i else ""
+        print(f"{i}. {option}{marker}")
 
+    default_hint = f", default {default}" if default is not None else ""
     while True:
-        choice = input(f"\nEnter choice (1-{len(options)}): ").strip()
+        choice = input(f"\nEnter choice (1-{len(options)}{default_hint}): ").strip()
+        if choice == "" and default is not None:
+            return options[default - 1]
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(options):

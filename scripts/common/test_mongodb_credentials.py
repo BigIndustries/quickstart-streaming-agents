@@ -109,7 +109,11 @@ def test_mongodb_connection(
         uri = connection_string
 
     try:
-        client = MongoClient(uri, serverSelectionTimeoutMS=timeout_ms)
+        # tlsAllowInvalidCertificates=True works around Python's bundled CA store
+        # not trusting the MongoDB Atlas cert chain on macOS. This is advisory-only
+        # validation — the actual Terraform/Flink connection uses Java's SSL stack
+        # which trusts the system keychain and does not need this workaround.
+        client = MongoClient(uri, serverSelectionTimeoutMS=timeout_ms, tlsAllowInvalidCertificates=True)
         client.admin.command("ping")
         client.close()
         logger.info("✓ MongoDB connection successful")

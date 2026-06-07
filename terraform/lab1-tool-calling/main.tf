@@ -14,9 +14,10 @@ locals {
   # Remote MCP backend selection. Endpoints are hard-coded so users can't point
   # Flink at an arbitrary MCP server via tfvars.
   mcp_lambda_endpoint    = "https://z04yuqut2a.execute-api.us-east-1.amazonaws.com/mcp"
+  mcp_bigind_endpoint    = "https://lfb90lpu6c.execute-api.us-east-1.amazonaws.com/mcp"
   mcp_zapier_endpoint    = "https://mcp.zapier.com/api/v1/connect"
-  effective_mcp_endpoint = var.mcp_backend == "zapier" ? local.mcp_zapier_endpoint : local.mcp_lambda_endpoint
-  effective_mcp_token    = var.mcp_backend == "zapier" ? var.zapier_token : var.mcp_token
+  effective_mcp_endpoint = var.mcp_backend == "zapier" ? local.mcp_zapier_endpoint : (var.mcp_backend == "bigind" ? local.mcp_bigind_endpoint : local.mcp_lambda_endpoint)
+  effective_mcp_token    = var.mcp_backend == "zapier" ? var.zapier_token : (var.mcp_backend == "bigind" ? var.bigind_mcp_token : var.mcp_token)
 }
 
 # Random ID for unique resource names for this lab
