@@ -69,26 +69,17 @@ winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform Con
 **1. Clone the repository and navigate to the Quickstart directory:**
 
 ```bash
-git clone https://github.com/confluentinc/quickstart-streaming-agents.git
+git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
-**2. Auto-generate AWS Bedrock or Azure OpenAI keys:**
 
-```bash
-# Creates API-KEYS-[AWS|AZURE].md and auto-populates them in next step
-uv run api-keys create
-```
-
-3. **One command deployment:**
+2. **One command deployment:**
 
 ```bash
 uv run deploy
 ```
 
-That's it! The script will autofill generated credentials and guide you through setup and deployment of your chosen lab(s).
-> [!NOTE]
->
-> See the [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for details about auto-generating API keys and tips for running demo workshops.
+That's it! The script will guide you through the setup and deployment of your chosen lab(s).
 
 ## Directory Structure
 
@@ -110,7 +101,3 @@ quickstart-streaming-agents/
 # Automated
 uv run destroy
 ```
-
-## Sign up for early access to Flink AI features
-
-For early access to exciting new Flink AI features, [fill out this form and we'll add you to our early access previews.](https://events.confluent.io/early-access-flink-features)

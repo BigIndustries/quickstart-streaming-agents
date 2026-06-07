@@ -150,10 +150,10 @@ setup-rtce = "scripts.setup_rtce:main"
 
 
 [project.urls]
-Homepage = "https://github.com/confluentinc/quickstart-streaming-agents"
-Repository = "https://github.com/confluentinc/quickstart-streaming-agents"
-Documentation = "https://github.com/confluentinc/quickstart-streaming-agents#readme"
-Issues = "https://github.com/confluentinc/quickstart-streaming-agents/issues"
+Homepage = "https://github.com/BigIndustries/quickstart-streaming-agents"
+Repository = "https://github.com/BigIndustries/quickstart-streaming-agents"
+Documentation = "https://github.com/BigIndustries/quickstart-streaming-agents#readme"
+Issues = "https://github.com/BigIndustries/quickstart-streaming-agents/issues"
 
 # Hatchling build configuration
 [tool.hatch.build.targets.wheel]

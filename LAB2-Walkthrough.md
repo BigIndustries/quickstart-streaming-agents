@@ -23,7 +23,7 @@ In this lab, we'll create a Retrieval-Augmented Generation (RAG) pipeline using 
 If you haven't already, clone the repo:
 
 ```bash
-git clone https://github.com/confluentinc/quickstart-streaming-agents.git
+git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 

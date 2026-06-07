@@ -91,7 +91,7 @@ from .logging_utils import setup_logging
 # CONSTANTS
 # ============================================================================
 
-PROJECT_URL = "https://github.com/confluentinc/quickstart-streaming-agents"
+PROJECT_URL = "https://github.com/BigIndustries/quickstart-streaming-agents"
 
 # AWS Constants
 AWS_IAM_USERNAME = "workshop-bedrock-user"
@@ -325,7 +325,7 @@ AWS Secret Access Key: {secret_access_key}
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/confluentinc/quickstart-streaming-agents
+   git clone https://github.com/BigIndustries/quickstart-streaming-agents
    cd quickstart-streaming-agents
    ```
 
@@ -918,7 +918,7 @@ Azure OpenAI API Key:  {api_key}
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/confluentinc/quickstart-streaming-agents
+   git clone https://github.com/BigIndustries/quickstart-streaming-agents
    cd quickstart-streaming-agents
    ```
 

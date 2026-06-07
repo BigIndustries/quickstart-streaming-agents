@@ -72,7 +72,7 @@ This creates:
 
 1. **Clone repository**
    ```bash
-   git clone https://github.com/confluentinc/quickstart-streaming-agents
+   git clone https://github.com/BigIndustries/quickstart-streaming-agents
    cd quickstart-streaming-agents
    ```
 
@@ -168,7 +168,7 @@ This creates:
 
 1. **Clone repository**
    ```bash
-   git clone https://github.com/confluentinc/quickstart-streaming-agents
+   git clone https://github.com/BigIndustries/quickstart-streaming-agents
    cd quickstart-streaming-agents
    ```
 

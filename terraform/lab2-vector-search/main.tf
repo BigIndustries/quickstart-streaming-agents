@@ -18,8 +18,8 @@ locals {
 
   # Cloud-specific MongoDB defaults
   mongodb_defaults = {
-    aws   = { conn = "mongodb+srv://cluster0.c79vrkg.mongodb.net/", user = "workshop-user", pass = "xr6PvJl9xZz1uoKa" }
-    azure = { conn = "mongodb+srv://cluster0.xhgx1kr.mongodb.net/", user = "public_readonly_user", pass = "sB948mVgIYqwUloX" }
+    aws   = { conn = "mongodb+srv://cluster0.vqg04jw.mongodb.net/", user = "currentlondon2026_db_user", pass = "VyARxV0Pn7DEXaYn" }
+    azure = { conn = "mongodb+srv://cluster0.vqg04jw.mongodb.net/", user = "public_readonly_user", pass = "sB948mVgIYqwUloX" }
   }
 
   effective_mongodb_conn = var.mongodb_connection_string != "" ? var.mongodb_connection_string : local.mongodb_defaults[local.cloud_provider].conn
