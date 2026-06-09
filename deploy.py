@@ -133,14 +133,21 @@ def _grant_workshop_permissions(env_id: str, cluster_id: str) -> None:
             ["confluent", "iam", "user", "list", "--output", "json"],
             capture_output=True, text=True, check=True,
         )
-        users = _json.loads(r.stdout)
+        print(f"  Raw user list output: {r.stdout[:500]!r}")
+        raw = _json.loads(r.stdout)
+        # Handle both array and {"users": [...]} response shapes
+        if isinstance(raw, list):
+            users = raw
+        elif isinstance(raw, dict):
+            users = raw.get("users") or raw.get("data") or list(raw.values())[0] if raw else []
+        else:
+            users = []
     except Exception as exc:
         print(f"  Warning: could not list org users: {exc}")
         return
 
     print(f"  Found {len(users)} org user(s).")
     if users:
-        # Show the first user's keys so we can verify the ID field name
         print(f"  User record sample keys: {list(users[0].keys())}")
 
     granted = already = failed = 0
