@@ -28,7 +28,7 @@ from scripts.common.confluent_rest import (
 )
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
-from scripts.common.ui import prompt_with_default
+from scripts.common.ui import prompt_choice, prompt_with_default
 
 
 # ---------------------------------------------------------------------------
@@ -186,13 +186,19 @@ def _collect_workshop_inputs(
 
     print()
 
-    # ── 3. Confluent Cloud API key (auto-created for current user) ───────────
-    api_key = creds.get("TF_VAR_confluent_cloud_api_key", "")
-    api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
-    if api_key and api_secret:
-        print(f"  Cloud API Key  : {api_key} (cached)")
-    else:
-        print("  Creating Confluent Cloud API key...")
+    # ── 3. Confluent Cloud API key ────────────────────────────────────────────
+    cached_cloud_key = creds.get("TF_VAR_confluent_cloud_api_key", "")
+    cached_cloud_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
+    manual_option = (
+        f'Enter manually [current: "{cached_cloud_key}"]' if cached_cloud_key
+        else "Enter manually"
+    )
+    cloud_key_choice = prompt_choice(
+        "Confluent Cloud API key:",
+        ["Auto-create from current logged-in account", manual_option],
+        default=1,
+    )
+    if "Auto-create" in cloud_key_choice:
         try:
             r = subprocess.run(
                 ["confluent", "api-key", "create", "--resource", "cloud", "--output", "json"],
@@ -209,14 +215,28 @@ def _collect_workshop_inputs(
         except Exception as exc:
             print(f"\nError: could not create Confluent Cloud API key: {exc}")
             sys.exit(1)
-
-    # ── 4. Kafka API key (auto-created for current user) ─────────────────────
-    admin_kk = creds.get("WORKSHOP_ADMIN_KAFKA_KEY", "")
-    admin_ks = creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", "")
-    if admin_kk and admin_ks:
-        print(f"  Kafka API Key  : {admin_kk} (cached)")
     else:
-        print("  Creating Kafka API key...")
+        api_key = prompt_with_default("Confluent Cloud API Key", cached_cloud_key)
+        api_secret = prompt_with_default("Confluent Cloud API Secret", cached_cloud_secret)
+        if not api_key or not api_secret:
+            print("Error: Confluent Cloud API credentials are required.")
+            sys.exit(1)
+        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
+        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
+
+    # ── 4. Kafka API key ──────────────────────────────────────────────────────
+    cached_kafka_key = creds.get("WORKSHOP_ADMIN_KAFKA_KEY", "")
+    cached_kafka_secret = creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", "")
+    manual_option = (
+        f'Enter manually [current: "{cached_kafka_key}"]' if cached_kafka_key
+        else "Enter manually"
+    )
+    kafka_key_choice = prompt_choice(
+        "Kafka API key:",
+        ["Auto-create from current logged-in account", manual_option],
+        default=1,
+    )
+    if "Auto-create" in kafka_key_choice:
         try:
             r = subprocess.run(
                 ["confluent", "api-key", "create", "--resource", cluster_id, "--output", "json"],
@@ -233,6 +253,14 @@ def _collect_workshop_inputs(
         except Exception as exc:
             print(f"\nError: could not create Kafka API key: {exc}")
             sys.exit(1)
+    else:
+        admin_kk = prompt_with_default("Admin Kafka API Key", cached_kafka_key)
+        admin_ks = prompt_with_default("Admin Kafka API Secret", cached_kafka_secret)
+        if not admin_kk or not admin_ks:
+            print("Error: Kafka API credentials are required.")
+            sys.exit(1)
+        set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_KEY", admin_kk)
+        set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_SECRET", admin_ks)
 
     # ── 5. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
     print("\n--- Big Industries MCP server (ask your organiser, press Enter to skip) ---")
