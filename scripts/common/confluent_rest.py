@@ -49,7 +49,7 @@ def flink_rest(method, path, flink_endpoint, flink_key, flink_secret, body=None,
 
 def get_or_create_service_account(username, api_key, api_secret):
     """Return (sa_id, api_version), creating the SA if it doesn't already exist."""
-    display_name = f"workshop-{username}"
+    display_name = f"{username}-workshop"
 
     # Page through existing service accounts looking for a match
     path = f"/iam/v2/service-accounts?page_size=100"
