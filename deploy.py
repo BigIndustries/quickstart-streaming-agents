@@ -252,8 +252,12 @@ def main():
             print(
                 "\nConfluent Cloud login (credentials will be saved to credentials.env for auto-login):"
             )
+            cached_email = env_creds.get("CONFLUENT_EMAIL", "")
             for attempt in range(3):
-                email = input("  Email (press Enter to skip): ").strip()
+                if cached_email:
+                    email = prompt_with_default("  Email", cached_email)
+                else:
+                    email = input("  Email (press Enter to skip): ").strip()
                 if not email:
                     print(
                         "  Skipped. You'll need to run `confluent login` manually if your session expires."
