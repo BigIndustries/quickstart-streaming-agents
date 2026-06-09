@@ -28,7 +28,6 @@ from scripts.common.confluent_rest import (
 )
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
-from scripts.common.ui import prompt_choice
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +190,9 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         sr_endpoint = _field(sr, "endpoint_url", "endpoint")
         print(f"  Schema Registry: {sr_id}")
     except Exception:
-        pass  # SR details optional; role binding creation may fail without sr_id
+        pass
+    if not sr_id:
+        sr_id = _cached_prompt(creds, creds_file, "WORKSHOP_SR_ID", "Schema Registry Cluster ID")
 
     # ── 4. Organisation ID ───────────────────────────────────────────────────
     org_id = ""
@@ -218,7 +219,7 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
 
     print()
 
-    # ── 6. Confluent Cloud API credentials (SA + role-binding creation) ──────
+    # ── 5. Confluent Cloud API credentials (SA + role-binding creation) ──────
     api_key = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
     api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "").strip()
     if not api_key or not api_secret:
@@ -234,7 +235,7 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         print(f"  Confluent Cloud API key: {api_key[:8]}...  (cached)")
     print()
 
-    # ── 7. Admin Kafka credentials (for ACL creation) ────────────────────────
+    # ── 6. Admin Kafka credentials (for ACL creation) ────────────────────────
     print("Admin Kafka API key (ask your organiser — used for ACL setup):")
     admin_kk = input("  Kafka API Key   : ").strip()
     admin_ks = input("  Kafka API Secret: ").strip()
@@ -345,24 +346,7 @@ def main():
     admin_kk     = core["app_manager_kafka_api_key"]
     admin_ks     = core["app_manager_kafka_api_secret"]
 
-    # --- 4. Lab selection ---
-    lab_choice = prompt_choice(
-        "Which labs would you like to set up?",
-        [
-            "Lab 1: MCP Tool Calling",
-            "Lab 2: Vector Search / RAG",
-            "Both Labs (1 and 2)",
-        ],
-        default=3,
-    )
-    if lab_choice == "Both Labs (1 and 2)":
-        labs = ["lab1", "lab2"]
-    elif lab_choice == "Lab 1: MCP Tool Calling":
-        labs = ["lab1"]
-    else:
-        labs = ["lab2"]
-
-    # --- 5. Create per-user resources ---
+    # --- 4. Create per-user resources ---
     print(f"\n=== Provisioning resources for {username} ===\n")
 
     print("Creating service account...")
@@ -401,11 +385,8 @@ def main():
 
     # --- 6. Lab access summary ---
     print("\nLab access:")
-    for lab in labs:
-        if lab == "lab1":
-            print("  Lab 1: shared source topics available (orders, products, customers)")
-        elif lab == "lab2":
-            print("  Lab 2: shared pipeline — write to 'queries', observe 'search_results_response'")
+    print("  Lab 1: shared source topics available (orders, products, customers)")
+    print("  Lab 2: shared pipeline — write to 'queries', observe 'search_results_response'")
 
     # --- 7. Save user credentials ---
     _save_user_credentials(root, username, kafka_key, kafka_secret, sr_key, sr_secret, core)
