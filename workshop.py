@@ -22,7 +22,7 @@ from scripts.common.confluent_rest import (
     create_role_binding,
     get_or_create_service_account,
 )
-from scripts.common.login_checks import ensure_confluent_login
+from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root, run_terraform_output
 from scripts.common.ui import prompt_choice, prompt_with_default
 from scripts.mcp_setup import setup_mcp_for_outputs
@@ -108,8 +108,8 @@ def main():
     creds = dotenv_values(str(creds_file)) if creds_file.exists() else {}
 
     # --- 1. Confluent login ---
-    ensure_confluent_login(creds)
-    print("✓ Confluent CLI logged in\n")
+    confluent_login_interactive()
+    print()
 
     # --- 2. Participant email → username ---
     email = creds.get("CONFLUENT_EMAIL", "").strip()

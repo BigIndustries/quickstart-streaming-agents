@@ -73,6 +73,27 @@ def _attempt_login_quiet(email: str, password: str) -> bool:
     return check_confluent_login()
 
 
+def confluent_login_interactive() -> None:
+    """Ensure Confluent CLI login, launching a browser if the session has expired.
+
+    Skips the browser prompt if already authenticated. Exits with an error if
+    login fails (e.g. CLI not installed, network issue).
+    """
+    if check_confluent_login():
+        print("✓ Already logged into Confluent Cloud")
+        return
+
+    print("Opening Confluent Cloud login in your browser...")
+    result = subprocess.run(["confluent", "login", "--save"])
+
+    if result.returncode != 0 or not check_confluent_login():
+        print("\nError: Confluent login failed.")
+        print("  If your organisation uses SSO, run:  confluent login --sso")
+        sys.exit(1)
+
+    print("✓ Logged into Confluent Cloud")
+
+
 def ensure_confluent_login(creds: Optional[dict] = None) -> None:
     """Check CLI login → attempt auto-login from creds → exit(1) with clear instructions."""
     if check_confluent_login():
