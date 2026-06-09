@@ -154,7 +154,9 @@ def main():
     if args.automated and args.testing:
         parser.error("--automated and --testing are mutually exclusive")
 
-    print("=== Simple Deployment Tool ===\n")
+    print("=== Simple Deployment Tool (single-account mode) ===\n")
+    print("ORGANIZER SETUP — run this once to provision the shared environment.")
+    print("Workshop participants should run `uv run workshop` afterwards.\n")
     if args.testing:
         print("Running in TESTING mode (non-interactive)\n")
 

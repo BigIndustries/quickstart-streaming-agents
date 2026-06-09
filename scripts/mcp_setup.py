@@ -337,6 +337,24 @@ def _register_with_codex(env_vars: dict, npx_bin: str, project_root: Path) -> No
     print("  Restart Codex CLI to activate.")
 
 
+def setup_mcp_for_outputs(outputs: dict, root: "Path") -> None:
+    """Configure the MCP server from a caller-provided outputs dict.
+
+    The dict must contain the same keys as ``run_terraform_output()`` returns from
+    the core state file.  Callers (e.g. workshop.py) may override individual keys
+    (e.g. substitute per-user API keys in place of the admin service-account keys)
+    before passing the dict here.
+    """
+    npx_bin = _resolve_npx()
+    _clear_broken_npx_cache(npx_bin)
+    env_vars = _build_env_vars(outputs)
+    agent = _pick_agent()
+    if agent == "codex":
+        _register_with_codex(env_vars, npx_bin, root)
+    else:
+        _register_with_claude_code(env_vars, npx_bin, root)
+
+
 def main():
     npx_bin = _resolve_npx()
     _clear_broken_npx_cache(npx_bin)
