@@ -39,7 +39,7 @@ uv run participate
 ```
 
 > [!NOTE]
-> In a workshop, the organizer's `uv run setup` has already deployed the shared pipeline that embeds documents into MongoDB. `uv run participate` creates your personal Flink tables for querying. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
+> In a workshop, the organizer's `uv run setup` has already deployed the full shared pipeline. `uv run participate` grants your service account access to the shared topics. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
 
 `uv run setup` deploys the complete RAG pipeline. Resources are split between shared (organizer) and per-user (participant):
 
@@ -53,15 +53,16 @@ uv run participate
 | `documents_vectordb_lab2` | Flink lookup table backed by MongoDB |
 | `llm_textgen_model`, `llm_embedding_model` | Shared LLM models |
 
-**Per-user resources** (created by `uv run participate`, prefixed with your username):
+**Participant access** (granted by `uv run participate`):
 
-| Resource | Purpose |
-|----------|---------|
-| `{prefix}_queries` | Your query input topic |
-| `{prefix}_queries_embed` | Your queries with embeddings |
-| `{prefix}_documents_vectordb_lab2` | Your personal MongoDB lookup table |
-| `{prefix}_search_results` | Your vector search results |
-| `{prefix}_search_results_response` | Your RAG responses |
+| Topic | Access | Purpose |
+|-------|--------|---------|
+| `queries` | Read + Write | Send your queries here |
+| `queries_embed` | Read | Your query after embedding |
+| `search_results` | Read | Vector search results |
+| `search_results_response` | Read | Final RAG responses |
+
+All participants share the same pipeline — queries from everyone flow through the same Flink jobs and appear in the same result topics.
 
 ## Using the RAG Pipeline
 
@@ -80,10 +81,7 @@ uv run publish-queries # starts interactive mode (recommended), or:
 uv run publish-queries "How do window functions work in Flink SQL?"
 ```
 
-Your queries land in your personal `{prefix}_queries` topic (e.g. `alice_queries`), which feeds into `{prefix}_queries_embed` where embeddings are created, and then through vector search into `{prefix}_search_results` and `{prefix}_search_results_response`.
-
-> [!NOTE]
-> **Workshop participants:** throughout this lab, substitute your personal prefix wherever you see a table name. Your prefix is shown at the end of `uv run participate` output (e.g. `alice`, `john_doe`). So `queries` becomes `alice_queries`, `search_results` becomes `alice_search_results`, and so on.
+Your queries land in the shared `queries` topic, which feeds into `queries_embed` where embeddings are created, then through vector search into `search_results` and `search_results_response`. In a workshop, queries from all participants flow through the same shared pipeline.
 
 The results contain:
 - Source document snippets with similarity scores
@@ -92,33 +90,20 @@ The results contain:
 
 ### View Results in Confluent Cloud
 
-Monitor the pipeline in the Confluent Cloud SQL workspace. Replace `{prefix}` with your username prefix:
+Monitor the shared pipeline in the Confluent Cloud SQL workspace:
 
 ```sql
--- Check data flow through your personal pipeline
-SELECT
-  (SELECT COUNT(*) FROM {prefix}_queries) AS queries_count,
-  (SELECT COUNT(*) FROM {prefix}_queries_embed) AS queries_embed_count,
-  (SELECT COUNT(*) FROM {prefix}_search_results) AS search_results_count,
-  (SELECT COUNT(*) FROM {prefix}_search_results_response) AS search_results_response_count;
-
--- See vector search results
-SELECT * FROM {prefix}_search_results LIMIT 5;
-
--- View final RAG responses
-SELECT query, response FROM {prefix}_search_results_response LIMIT 5;
-```
-
-**Self-service users** (single deployment, no prefix):
-
-```sql
+-- Check data flow through the pipeline
 SELECT
   (SELECT COUNT(*) FROM queries) AS queries_count,
   (SELECT COUNT(*) FROM queries_embed) AS queries_embed_count,
   (SELECT COUNT(*) FROM search_results) AS search_results_count,
   (SELECT COUNT(*) FROM search_results_response) AS search_results_response_count;
 
+-- See vector search results
 SELECT * FROM search_results LIMIT 5;
+
+-- View final RAG responses
 SELECT query, response FROM search_results_response LIMIT 5;
 ```
 

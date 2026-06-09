@@ -204,9 +204,7 @@ Examples:
         help="Query to publish. If not provided, interactive mode will be used.",
     )
     parser.add_argument(
-        "--topic",
-        default=None,
-        help="Kafka topic name. Defaults to WORKSHOP_USERNAME_queries if WORKSHOP_USERNAME is set in credentials.env, otherwise 'queries'.",
+        "--topic", default="queries", help="Kafka topic name (default: queries)"
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
@@ -251,15 +249,6 @@ Examples:
     except Exception as e:
         print(f"❌ Could not find project root: {e}")
         return 1
-
-    # Resolve default topic from workshop profile (WORKSHOP_USERNAME in credentials.env)
-    if args.topic is None:
-        creds_file = project_root / "credentials.env"
-        workshop_user = ""
-        if creds_file.exists():
-            from dotenv import dotenv_values as _dv
-            workshop_user = _dv(str(creds_file)).get("WORKSHOP_USERNAME", "").strip()
-        args.topic = f"{workshop_user}_queries" if workshop_user else "queries"
 
     # Ensure Confluent CLI is logged in (auto-login from saved creds if needed)
     ensure_confluent_login()
@@ -319,14 +308,11 @@ Examples:
         if credentials.get("environment_id") and credentials.get("cluster_id"):
             env_id = credentials["environment_id"]
             cluster_id = credentials["cluster_id"]
-            # Derive response topic name from the query topic (queries → search_results_response)
-            topic_prefix = args.topic[: -len("queries")] if args.topic.endswith("queries") else ""
-            response_topic = f"{topic_prefix}search_results_response"
             print(
                 f"\n  View messages:  https://confluent.cloud/environments/{env_id}/clusters/{cluster_id}/topics/{args.topic}/message-viewer"
             )
             print(
-                f"  View responses: https://confluent.cloud/environments/{env_id}/clusters/{cluster_id}/topics/{response_topic}/message-viewer"
+                f"  View responses: https://confluent.cloud/environments/{env_id}/clusters/{cluster_id}/topics/search_results_response/message-viewer"
             )
 
         return 0

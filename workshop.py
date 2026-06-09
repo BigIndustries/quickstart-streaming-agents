@@ -21,8 +21,6 @@ from scripts.common.confluent_rest import (
     create_kafka_acls,
     create_role_binding,
     get_or_create_service_account,
-    run_flink_statement,
-    set_topic_retention,
 )
 from scripts.common.login_checks import ensure_confluent_login
 from scripts.common.terraform import get_project_root, run_terraform_output
@@ -65,73 +63,6 @@ def _load_core_outputs(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 # Per-lab Flink SQL table setup
 # ---------------------------------------------------------------------------
-
-def _stmt(username: str, suffix: str) -> str:
-    """Build a globally-unique Flink statement name (only [a-z0-9-] allowed)."""
-    # Replace underscores (valid in topic names) with hyphens for statement names
-    safe = username.replace("_", "-")
-    return f"{safe}-{suffix}"
-
-
-def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name):
-    """Lab 2 – Vector Search & RAG: queries, queries_embed, documents_vectordb, search pipelines."""
-    print("  Creating Lab 2 tables and pipelines...")
-
-    stmts = [
-        # Input table
-        (_stmt(u, "queries-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_queries` (query STRING NOT NULL);"),
-
-        # Embedding sink
-        (_stmt(u, "queries-embed-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_queries_embed` (query STRING, embedding ARRAY<FLOAT>);"),
-
-        # MongoDB vector-store connector (references shared mongodb-connection)
-        # The organizer's pipeline (documents → documents_embed → MongoDB) populates
-        # this collection; participants only need a per-user lookup table pointing at it.
-        (_stmt(u, "documents-vectordb-table"),
-         f"CREATE TABLE IF NOT EXISTS `{u}_documents_vectordb_lab2` ("
-         "document_id STRING, chunk STRING, embedding ARRAY<FLOAT>"
-         ") WITH ("
-         "'connector' = 'mongodb',"
-         "'mongodb.connection' = 'mongodb-connection',"
-         "'mongodb.database' = 'vector_search',"
-         "'mongodb.collection' = 'documents',"
-         "'mongodb.index' = 'vector_index',"
-         "'mongodb.embedding_column' = 'embedding',"
-         "'mongodb.numCandidates' = '500');"),
-
-        # Streaming: embed queries (INSERT INTO runs continuously)
-        (_stmt(u, "queries-embed-insert"),
-         f"INSERT INTO `{env_name}`.`{cluster_name}`.`{u}_queries_embed` "
-         f"SELECT query, embedding FROM `{env_name}`.`{cluster_name}`.`{u}_queries`, "
-         "LATERAL TABLE(ML_PREDICT('llm_embedding_model', query));"),
-
-        # Streaming: vector search results
-        (_stmt(u, "search-results-table"),
-         f"CREATE TABLE IF NOT EXISTS `{u}_search_results` AS "
-         f"SELECT qe.query,"
-         "vs.search_results[1].document_id AS document_id_1, vs.search_results[1].chunk AS chunk_1, vs.search_results[1].score AS score_1,"
-         "vs.search_results[2].document_id AS document_id_2, vs.search_results[2].chunk AS chunk_2, vs.search_results[2].score AS score_2,"
-         "vs.search_results[3].document_id AS document_id_3, vs.search_results[3].chunk AS chunk_3, vs.search_results[3].score AS score_3 "
-         f"FROM `{env_name}`.`{cluster_name}`.`{u}_queries_embed` AS qe, "
-         f"LATERAL TABLE(VECTOR_SEARCH_AGG(`{u}_documents_vectordb_lab2`, DESCRIPTOR(embedding), qe.embedding, 3)) AS vs;"),
-
-        # Streaming: RAG response generation
-        (_stmt(u, "search-results-response-table"),
-         f"CREATE TABLE IF NOT EXISTS `{u}_search_results_response` AS "
-         f"SELECT sr.query, sr.document_id_1, sr.chunk_1, sr.score_1,"
-         "sr.document_id_2, sr.chunk_2, sr.score_2, sr.document_id_3, sr.chunk_3, sr.score_3,"
-         "pred.response "
-         f"FROM `{u}_search_results` sr, "
-         "LATERAL TABLE(ml_predict('llm_textgen_model',"
-         f"CONCAT('Based on the following search results, answer the user query.\\n\\nUSER QUERY: ', sr.query,"
-         "'\\n\\nDocument 1: ', sr.chunk_1, '\\n\\nDocument 2: ', sr.chunk_2,"
-         "'\\n\\nDocument 3: ', sr.chunk_3, '\\n\\nRESPONSE:'))) AS pred;"),
-    ]
-    for name, sql in stmts:
-        run_flink_statement(name, sql, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name)
-
 
 
 # ---------------------------------------------------------------------------
@@ -196,21 +127,17 @@ def main():
     print("Reading shared infrastructure from organizer's deployment...")
     core = _load_core_outputs(root)
 
-    env_id        = core["confluent_environment_id"]
-    cluster_id    = core["confluent_kafka_cluster_id"]
-    sr_id         = core["confluent_schema_registry_id"]
-    org_id        = core["confluent_organization_id"]
-    pool_id       = core["confluent_flink_compute_pool_id"]
-    flink_ep      = core["confluent_flink_rest_endpoint"]
-    rest_ep       = core["confluent_kafka_cluster_rest_endpoint"]
-    env_name      = core["confluent_environment_display_name"]
-    cluster_name  = core["confluent_kafka_cluster_display_name"]
-    cloud         = core["cloud_provider"]
-    cloud_region  = core["cloud_region"]
-    admin_kk      = core["app_manager_kafka_api_key"]
-    admin_ks      = core["app_manager_kafka_api_secret"]
-    admin_fk      = core["app_manager_flink_api_key"]
-    admin_fs      = core["app_manager_flink_api_secret"]
+    env_id       = core["confluent_environment_id"]
+    cluster_id   = core["confluent_kafka_cluster_id"]
+    sr_id        = core["confluent_schema_registry_id"]
+    org_id       = core["confluent_organization_id"]
+    rest_ep      = core["confluent_kafka_cluster_rest_endpoint"]
+    env_name     = core["confluent_environment_display_name"]
+    cluster_name = core["confluent_kafka_cluster_display_name"]
+    cloud        = core["cloud_provider"]
+    cloud_region = core["cloud_region"]
+    admin_kk     = core["app_manager_kafka_api_key"]
+    admin_ks     = core["app_manager_kafka_api_secret"]
 
     print(f"  Environment : {env_name} ({env_id})")
     print(f"  Cluster     : {cluster_name} ({cluster_id})")
@@ -289,31 +216,15 @@ def main():
     print("Creating Kafka ACLs...")
     create_kafka_acls(username, sa_id, cluster_id, rest_ep, admin_kk, admin_ks)
 
-    # --- 7. Per-lab Flink SQL tables ---
-    # We use the ADMIN Flink key to submit statements (to avoid bootstrap-permission issues),
-    # but set the statement principal to the user's SA so the Flink job runs under their ACLs.
-    print("\nCreating per-user Flink SQL tables...")
+    # --- 7. Lab access summary ---
+    print("\nLab access:")
     for lab in labs:
         if lab == "lab1":
-            # Lab 1 uses shared source topics (orders, products, customers) that the
-            # organizer populates via datagen. Participants have READ ACLs on those topics.
-            # MCP is configured with organizer credentials — no per-user tables needed.
             print("  Lab 1: shared source topics available (orders, products, customers)")
         elif lab == "lab2":
-            _setup_lab2(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
+            print("  Lab 2: shared pipeline available — write to 'queries', observe 'search_results_response'")
 
-    # --- 8. Set 1-hour retention on per-user Kafka topics ---
-    if "lab2" in labs:
-        print("\nSetting topic retention (1 hour)...")
-        for topic in [
-            f"{username}_queries",
-            f"{username}_queries_embed",
-            f"{username}_search_results",
-            f"{username}_search_results_response",
-        ]:
-            set_topic_retention(topic, cluster_id, rest_ep, admin_kk, admin_ks)
-
-    # --- 9. Save user credentials ---
+    # --- 8. Save user credentials ---
     _save_user_credentials(root, username, email, kafka_key, kafka_secret, sr_key, sr_secret, core)
 
     # --- 10. Configure MCP using the organizer's shared credentials ---
