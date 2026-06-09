@@ -3,14 +3,16 @@
 Single-account workshop setup for Confluent streaming agents.
 
 Run by each workshop PARTICIPANT after the organizer has run `uv run setup`.
-Creates per-user resources (service account, API keys, ACLs, Flink SQL tables)
-namespaced under a prefix derived from the participant's Confluent email address.
+Creates per-user resources (service account, API keys, ACLs) namespaced under
+a prefix derived from the participant's first name.
 
 Usage:
-    uv run participate
+    uv run participate            # opens browser login if session expired
+    uv run participate --login    # always opens browser login
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -25,8 +27,8 @@ from scripts.common.confluent_rest import (
     get_or_create_service_account,
 )
 from scripts.common.login_checks import confluent_login_interactive
-from scripts.common.terraform import get_project_root, run_terraform_output
-from scripts.common.ui import prompt_choice, prompt_with_default
+from scripts.common.terraform import get_project_root
+from scripts.common.ui import prompt_choice
 from scripts.mcp_setup import setup_mcp_for_outputs
 
 
@@ -34,49 +36,288 @@ from scripts.mcp_setup import setup_mcp_for_outputs
 # Username derivation
 # ---------------------------------------------------------------------------
 
-def _email_to_username(email: str) -> str:
-    """Derive a safe, short username from an email local-part.
+def _name_to_username(name: str) -> str:
+    """Derive a safe, short username from a first name.
 
-    Kafka topics allow underscores; Flink statement names require [a-z0-9-].
-    We use underscores for topic/table prefixes and hyphens for statement names
-    (see _stmt).  The prefix itself only needs to be alphanumeric + underscore.
+    Applies the same guardrails as the old email-based derivation:
+    alphanumeric + underscores, starts with a letter, max 20 chars.
     """
-    local = email.split("@")[0]
-    clean = re.sub(r"[^a-z0-9]", "_", local.lower()).strip("_")
-    # Ensure the username starts with a letter so statement names are valid
+    clean = re.sub(r"[^a-z0-9]", "_", name.lower()).strip("_")
     if not clean or not clean[0].isalpha():
         clean = "u" + clean
     return clean[:20]
 
 
 # ---------------------------------------------------------------------------
-# Core state loader
+# Confluent CLI helpers
 # ---------------------------------------------------------------------------
 
-def _load_core_outputs(root: Path) -> dict:
-    state_path = root / "terraform" / "core" / "terraform.tfstate"
-    if not state_path.exists():
-        print("Error: terraform/core/terraform.tfstate not found.")
-        print("The workshop organizer must run `uv run setup` first.")
+def _confluent_json(args: list) -> list | dict:
+    """Run a confluent CLI command with --output json. Raises on non-zero exit."""
+    result = subprocess.run(
+        ["confluent"] + args + ["--output", "json"],
+        capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def _field(d: dict, *keys: str, default: str = "") -> str:
+    """Return the first non-empty value from d matching any of keys."""
+    for k in keys:
+        v = d.get(k)
+        if v:
+            return str(v)
+    return default
+
+
+def _pick_from_list(items: list, label_fn) -> dict:
+    """Display a numbered list and return the user-selected item."""
+    for i, item in enumerate(items, 1):
+        print(f"  {i}. {label_fn(item)}")
+    while True:
+        raw = input(f"  Enter number [1–{len(items)}]: ").strip()
+        if raw.isdigit() and 1 <= int(raw) <= len(items):
+            return items[int(raw) - 1]
+        print(f"  Please enter a number between 1 and {len(items)}.")
+
+
+def _cached_prompt(creds: dict, creds_file: Path, env_key: str, label: str) -> str:
+    """Return a cached value from credentials.env, or prompt and cache it."""
+    cached = creds.get(env_key, "").strip()
+    if cached:
+        print(f"  {label}: {cached}  (cached)")
+        return cached
+    value = input(f"  {label}: ").strip()
+    if value:
+        set_key(str(creds_file), env_key, value)
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Interactive workshop configuration collection
+# ---------------------------------------------------------------------------
+
+def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, str]:
+    """
+    Interactively collect all organizer-provisioned details needed to participate.
+
+    Uses the Confluent CLI to auto-discover environment, cluster, SR, and Flink
+    pool details where possible. Only admin credentials must be typed manually.
+
+    Returns (core_dict, confluent_cloud_api_key, confluent_cloud_api_secret).
+    The core_dict is compatible with the keys expected by setup_mcp_for_outputs.
+    """
+    print("\n=== Workshop Configuration ===")
+    print("The values below come from your workshop organiser.\n")
+
+    # ── 1. Environment ───────────────────────────────────────────────────────
+    env_id = env_name = ""
+    try:
+        envs = _confluent_json(["environment", "list"])
+        if not envs:
+            raise ValueError("no accessible environments")
+        if len(envs) == 1:
+            env = envs[0]
+            env_id = env["id"]
+            env_name = _field(env, "name", "display_name", default=env_id)
+            print(f"  Environment: {env_name} ({env_id})")
+        else:
+            print("Select the workshop environment:")
+            env = _pick_from_list(
+                envs,
+                lambda e: f"{_field(e, 'name', 'display_name')} ({e['id']})",
+            )
+            env_id = env["id"]
+            env_name = _field(env, "name", "display_name", default=env_id)
+    except Exception:
+        env_id = _cached_prompt(creds, creds_file, "WORKSHOP_ENV_ID", "Confluent Environment ID")
+        env_name = env_id
+
+    set_key(str(creds_file), "WORKSHOP_ENV_ID", env_id)
+    subprocess.run(
+        ["confluent", "environment", "use", env_id],
+        check=True, capture_output=True,
+    )
+
+    # ── 2. Kafka cluster ─────────────────────────────────────────────────────
+    cluster_id = cluster_name = bootstrap_ep = rest_ep = cloud = region = ""
+    try:
+        clusters = _confluent_json(["kafka", "cluster", "list", "--environment", env_id])
+        if not clusters:
+            raise ValueError("no clusters found")
+        if len(clusters) == 1:
+            c = clusters[0]
+        else:
+            print("\nSelect the workshop Kafka cluster:")
+            c = _pick_from_list(
+                clusters,
+                lambda item: (
+                    f"{_field(item, 'name')} ({item['id']}) — "
+                    f"{_field(item, 'cloud', 'provider')} {_field(item, 'region')}"
+                ),
+            )
+        cluster_id = c["id"]
+        cluster_name = _field(c, "name", default=cluster_id)
+        bootstrap_ep = _field(c, "bootstrap_endpoint")
+        rest_ep = _field(c, "rest_endpoint")
+        cloud = _field(c, "cloud", "provider").lower()
+        region = _field(c, "region")
+
+        # Describe for any fields missing from the list output
+        if not bootstrap_ep or not rest_ep:
+            try:
+                d = _confluent_json(["kafka", "cluster", "describe", cluster_id, "--environment", env_id])
+                bootstrap_ep = bootstrap_ep or _field(d, "bootstrap_endpoint")
+                rest_ep = rest_ep or _field(d, "rest_endpoint")
+                cloud = cloud or _field(d, "cloud", "provider").lower()
+                region = region or _field(d, "region")
+                cluster_name = cluster_name or _field(d, "name", default=cluster_id)
+            except Exception:
+                pass
+    except Exception:
+        cluster_id = _cached_prompt(creds, creds_file, "WORKSHOP_CLUSTER_ID", "Kafka Cluster ID")
+        cluster_name = cluster_id
+
+    set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
+    subprocess.run(
+        ["confluent", "kafka", "cluster", "use", cluster_id, "--environment", env_id],
+        check=True, capture_output=True,
+    )
+    print(f"  Cluster    : {cluster_name} ({cluster_id}) — {cloud} {region}")
+
+    # ── 3. Schema Registry ───────────────────────────────────────────────────
+    sr_id = sr_endpoint = ""
+    try:
+        sr = _confluent_json(["schema-registry", "cluster", "describe", "--environment", env_id])
+        sr_id = _field(sr, "cluster_id", "id")
+        sr_endpoint = _field(sr, "endpoint_url", "endpoint")
+        print(f"  Schema Registry: {sr_id}")
+    except Exception:
+        pass  # SR info is optional; MCP SR features won't work without it
+
+    # ── 4. Flink compute pool ────────────────────────────────────────────────
+    flink_pool_id = ""
+    try:
+        pools = _confluent_json(["flink", "compute-pool", "list", "--environment", env_id])
+        if pools:
+            if len(pools) == 1:
+                flink_pool_id = pools[0]["id"]
+                print(f"  Flink pool : {_field(pools[0], 'name', default=flink_pool_id)} ({flink_pool_id})")
+            else:
+                print("\nSelect the workshop Flink compute pool:")
+                pool = _pick_from_list(pools, lambda p: f"{_field(p, 'name')} ({p['id']})")
+                flink_pool_id = pool["id"]
+    except Exception:
+        pass  # Flink pool optional; MCP Flink features won't work without it
+
+    # Derive Flink REST endpoint from cloud + region
+    flink_rest_ep = (
+        f"https://flink.{region}.{cloud}.confluent.cloud"
+        if cloud and region else ""
+    )
+
+    # ── 5. Organisation ID ───────────────────────────────────────────────────
+    org_id = ""
+    # Try: confluent organization list
+    for cmd in [["organization", "list"], ["iam", "organization", "list"]]:
+        try:
+            orgs = _confluent_json(cmd)
+            if orgs:
+                org_id = _field(orgs[0], "id")
+                break
+        except Exception:
+            continue
+    # Fallback: parse org from the environment CRN
+    if not org_id:
+        try:
+            env_desc = _confluent_json(["environment", "describe", env_id])
+            crn = _field(env_desc, "resource_name")
+            if "organization=" in crn:
+                org_id = crn.split("organization=")[1].split("/")[0]
+        except Exception:
+            pass
+    if not org_id:
+        org_id = _cached_prompt(creds, creds_file, "WORKSHOP_ORG_ID", "Confluent Organisation ID")
+
+    print()
+
+    # ── 6. Confluent Cloud API credentials (SA + role-binding creation) ──────
+    api_key = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
+    api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "").strip()
+    if not api_key or not api_secret:
+        print("Confluent Cloud API key (ask your organiser — used to create your service account):")
+        api_key = input("  API Key   : ").strip()
+        api_secret = input("  API Secret: ").strip()
+        if not api_key or not api_secret:
+            print("Error: Confluent Cloud API credentials are required.")
+            sys.exit(1)
+        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
+        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
+    else:
+        print(f"  Confluent Cloud API key: {api_key[:8]}...  (cached)")
+    print()
+
+    # ── 7. Admin Kafka credentials (ACL creation + MCP Kafka access) ─────────
+    print("Admin Kafka API key (ask your organiser — used for ACL setup and MCP):")
+    admin_kk = input("  Kafka API Key   : ").strip()
+    admin_ks = input("  Kafka API Secret: ").strip()
+    if not admin_kk or not admin_ks:
+        print("Error: Admin Kafka credentials are required.")
         sys.exit(1)
-    return run_terraform_output(state_path)
+    print()
 
+    # ── 8. Optional admin Flink + SR keys (full MCP functionality) ───────────
+    print("Admin Flink + Schema Registry keys (ask organiser, or press Enter to skip):")
+    admin_fk  = input("  Flink API Key     : ").strip()
+    admin_fs  = input("  Flink API Secret  : ").strip()
+    admin_srk = input("  SR API Key        : ").strip()
+    admin_srs = input("  SR API Secret     : ").strip()
 
-# ---------------------------------------------------------------------------
-# Per-lab Flink SQL table setup
-# ---------------------------------------------------------------------------
+    # ── Build core dict ───────────────────────────────────────────────────────
+    core = {
+        "confluent_environment_id":                   env_id,
+        "confluent_environment_display_name":         env_name,
+        "confluent_kafka_cluster_id":                 cluster_id,
+        "confluent_kafka_cluster_display_name":       cluster_name,
+        "confluent_kafka_cluster_bootstrap_endpoint": bootstrap_ep,
+        "confluent_kafka_cluster_rest_endpoint":      rest_ep,
+        "confluent_schema_registry_id":               sr_id,
+        "confluent_schema_registry_rest_endpoint":    sr_endpoint,
+        "confluent_organization_id":                  org_id,
+        "cloud_provider":                             cloud,
+        "cloud_region":                               region,
+        "app_manager_kafka_api_key":                  admin_kk,
+        "app_manager_kafka_api_secret":               admin_ks,
+        "app_manager_flink_api_key":                  admin_fk,
+        "app_manager_flink_api_secret":               admin_fs,
+        "confluent_flink_rest_endpoint":              flink_rest_ep,
+        "confluent_flink_compute_pool_id":            flink_pool_id,
+        "app_manager_schema_registry_api_key":        admin_srk,
+        "app_manager_schema_registry_api_secret":     admin_srs,
+        "confluent_cloud_api_key":                    api_key,
+        "confluent_cloud_api_secret":                 api_secret,
+    }
+
+    return core, api_key, api_secret
 
 
 # ---------------------------------------------------------------------------
 # Credentials file
 # ---------------------------------------------------------------------------
 
-def _save_user_credentials(root: Path, username: str, email: str, kafka_key: str, kafka_secret: str, sr_key: str, sr_secret: str, core: dict) -> None:
+def _save_user_credentials(
+    root: Path,
+    username: str,
+    kafka_key: str,
+    kafka_secret: str,
+    sr_key: str,
+    sr_secret: str,
+    core: dict,
+) -> None:
     path = root / f"{username}-credentials.env"
     lines = [
-        f"# Workshop credentials for {email} — generated by uv run participate",
+        f"# Workshop credentials for {username} — generated by uv run participate",
         f"WORKSHOP_USERNAME='{username}'",
-        f"WORKSHOP_EMAIL='{email}'",
         "",
         "# Kafka",
         f"TF_VAR_kafka_api_key='{kafka_key}'",
@@ -121,69 +362,26 @@ def main():
     confluent_login_interactive(force=args.login)
     print()
 
-    # --- 2. Participant email → username ---
-    email = creds.get("CONFLUENT_EMAIL", "").strip()
-    if not email:
-        email = input("Your Confluent Cloud email address: ").strip()
-        if not email or "@" not in email:
-            print("Error: a valid email address is required.")
-            sys.exit(1)
+    # --- 2. Participant name → username ---
+    first_name = input("Your first name: ").strip()
+    if not first_name:
+        print("Error: a first name is required.")
+        sys.exit(1)
+    username = _name_to_username(first_name)
+    print(f"  Username prefix: {username}_\n")
 
-    username = _email_to_username(email)
-    print(f"Participant username : {username}")
-    print(f"Topic/table prefix  : {username}_\n")
-
-    # --- 3. Read shared infrastructure from core Terraform state ---
-    print("Reading shared infrastructure from organizer's deployment...")
-    core = _load_core_outputs(root)
+    # --- 3. Collect all organizer-provisioned workshop details interactively ---
+    core, api_key, api_secret = _collect_workshop_inputs(creds, creds_file)
 
     env_id       = core["confluent_environment_id"]
     cluster_id   = core["confluent_kafka_cluster_id"]
     sr_id        = core["confluent_schema_registry_id"]
     org_id       = core["confluent_organization_id"]
     rest_ep      = core["confluent_kafka_cluster_rest_endpoint"]
-    env_name     = core["confluent_environment_display_name"]
-    cluster_name = core["confluent_kafka_cluster_display_name"]
-    cloud        = core["cloud_provider"]
-    cloud_region = core["cloud_region"]
     admin_kk     = core["app_manager_kafka_api_key"]
     admin_ks     = core["app_manager_kafka_api_secret"]
 
-    print(f"  Environment : {env_name} ({env_id})")
-    print(f"  Cluster     : {cluster_name} ({cluster_id})")
-    print(f"  Cloud       : {cloud} / {cloud_region}")
-
-    # Point the Confluent CLI at the workshop environment and cluster so the
-    # participant's session is scoped to the right account context.
-    try:
-        subprocess.run(
-            ["confluent", "environment", "use", env_id],
-            check=True, capture_output=True, text=True,
-        )
-        subprocess.run(
-            ["confluent", "kafka", "cluster", "use", cluster_id, "--environment", env_id],
-            check=True, capture_output=True, text=True,
-        )
-        print("  ✓ CLI context set to workshop environment/cluster\n")
-    except subprocess.CalledProcessError as e:
-        print(f"\nError: could not switch CLI context to the workshop environment.")
-        print(f"  {e.stderr.strip() or e.stdout.strip()}")
-        print("  Make sure your Confluent account has been added to the workshop organisation.")
-        sys.exit(1)
-
-    # --- 4. Confluent Cloud API credentials (for SA / API-key creation) ---
-    api_key    = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
-    api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "").strip()
-    if not api_key or not api_secret:
-        print("Confluent Cloud API credentials needed to create per-user resources.")
-        print("  (These are the admin API key/secret, not your personal password.)\n")
-        api_key    = input("  Confluent Cloud API Key   : ").strip()
-        api_secret = input("  Confluent Cloud API Secret: ").strip()
-        if not api_key or not api_secret:
-            print("Error: Confluent Cloud API credentials are required.")
-            sys.exit(1)
-
-    # --- 5. Lab selection ---
+    # --- 4. Lab selection ---
     lab_choice = prompt_choice(
         "Which labs would you like to set up?",
         [
@@ -200,25 +398,20 @@ def main():
     else:
         labs = ["lab2"]
 
-    # --- 6. Create per-user resources ---
+    # --- 5. Create per-user resources ---
     print(f"\n=== Provisioning resources for {username} ===\n")
 
-    # Service account
     print("Creating service account...")
     sa_id, sa_api_version = get_or_create_service_account(username, api_key, api_secret)
 
-    # FlinkDeveloper role so the SA can execute Flink SQL
     org_crn = f"crn://confluent.cloud/organization={org_id}/environment={env_id}"
     create_role_binding(sa_id, "FlinkDeveloper", org_crn, api_key, api_secret)
-    print(f"  ✓ FlinkDeveloper role assigned")
+    print("  ✓ FlinkDeveloper role assigned")
 
-    # DeveloperWrite on Schema Registry so the SA can read and register schemas
-    # for all shared topics (queries, search_results, etc.)
     sr_crn = f"crn://confluent.cloud/organization={org_id}/environment={env_id}/schema-registry={sr_id}"
     create_role_binding(sa_id, "DeveloperWrite", sr_crn, api_key, api_secret)
-    print(f"  ✓ DeveloperWrite role assigned on Schema Registry")
+    print("  ✓ DeveloperWrite role assigned on Schema Registry")
 
-    # Kafka API key
     print("Creating Kafka API key...")
     kafka_key, kafka_secret = create_api_key(
         display_name=f"{username}-kafka-key",
@@ -229,7 +422,6 @@ def main():
     )
     print(f"  ✓ Kafka API key: {kafka_key}")
 
-    # Schema Registry API key
     print("Creating Schema Registry API key...")
     sr_key, sr_secret = create_api_key(
         display_name=f"{username}-sr-key",
@@ -240,35 +432,33 @@ def main():
     )
     print(f"  ✓ Schema Registry API key: {sr_key}")
 
-    # Kafka ACLs (prefix-based on {username}_)
     print("Creating Kafka ACLs...")
     create_kafka_acls(username, sa_id, cluster_id, rest_ep, admin_kk, admin_ks)
 
-    # --- 7. Lab access summary ---
+    # --- 6. Lab access summary ---
     print("\nLab access:")
     for lab in labs:
         if lab == "lab1":
             print("  Lab 1: shared source topics available (orders, products, customers)")
         elif lab == "lab2":
-            print("  Lab 2: shared pipeline available — write to 'queries', observe 'search_results_response'")
+            print("  Lab 2: shared pipeline — write to 'queries', observe 'search_results_response'")
 
-    # --- 8. Save user credentials ---
-    _save_user_credentials(root, username, email, kafka_key, kafka_secret, sr_key, sr_secret, core)
+    # --- 7. Save user credentials ---
+    _save_user_credentials(root, username, kafka_key, kafka_secret, sr_key, sr_secret, core)
 
-    # --- 10. Configure MCP using the organizer's shared credentials ---
+    # --- 8. Configure MCP using the organizer's shared credentials ---
     print("\nConfiguring MCP server...")
     setup_mcp_for_outputs(core, root)
 
-    # --- 11. Set workshop profile so uv run publish-queries targets the right topic ---
+    # --- 9. Set workshop profile so uv run publish-queries targets the right topic ---
     set_key(str(creds_file), "WORKSHOP_USERNAME", username)
     print(f"  ✓ WORKSHOP_USERNAME={username} written to credentials.env")
 
     print(f"\n{'=' * 50}")
     print(f"✓ Workshop setup complete for {username}")
-    print(f"  Topic / table prefix: {username}_")
-    print(f"  Kafka API key       : {kafka_key}")
-    print(f"  Credentials file    : {username}-credentials.env")
-    print(f"  Restart Claude Code to activate the MCP server.")
+    print(f"  Kafka API key    : {kafka_key}")
+    print(f"  Credentials file : {username}-credentials.env")
+    print("  Restart Claude Code to activate the MCP server.")
 
 
 if __name__ == "__main__":
