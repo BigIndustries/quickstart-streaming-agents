@@ -125,6 +125,12 @@ def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          "'mongodb.embedding_column' = 'embedding',"
          "'mongodb.numCandidates' = '500');"),
 
+        # Streaming: embed documents from shared topic into per-user MongoDB vector store
+        (_stmt(u, "documents-embed-insert"),
+         f"INSERT INTO `{u}_documents_vectordb_lab2` "
+         "SELECT document_id, document_text AS chunk, embedding "
+         "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
+
         # Streaming: embed queries (INSERT INTO runs continuously)
         (_stmt(u, "queries-embed-insert"),
          f"INSERT INTO `{env_name}`.`{cluster_name}`.`{u}_queries_embed` "
@@ -173,6 +179,12 @@ def _setup_lab3(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          "'mongodb.index' = 'vector_index',"
          "'mongodb.embedding_column' = 'embedding',"
          "'mongodb.numCandidates' = '500');"),
+
+        # Streaming: embed documents from shared topic into per-user MongoDB vector store
+        (_stmt(u, "documents-embed-insert-lab3"),
+         f"INSERT INTO `{u}_documents_vectordb_lab3` "
+         "SELECT document_id, document_text AS chunk, embedding "
+         "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
 
         (_stmt(u, "ride-requests-table"),
          f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_ride_requests` ("

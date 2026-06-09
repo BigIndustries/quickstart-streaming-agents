@@ -111,6 +111,9 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   prefix,          "PREFIXED", "DESCRIBE"),
         ("GROUP",   prefix,          "PREFIXED", "READ"),
         ("CLUSTER", "kafka-cluster", "LITERAL",  "DESCRIBE"),
+        # Shared documents topic — needed for the embedding ingestion pipeline
+        ("TOPIC",   "documents",     "LITERAL",  "READ"),
+        ("TOPIC",   "documents",     "LITERAL",  "DESCRIBE"),
     ]
     for resource_type, resource_name, pattern_type, operation in entries:
         kafka_rest(
