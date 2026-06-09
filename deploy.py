@@ -146,7 +146,7 @@ def main():
     parser.add_argument(
         "--automated",
         action="store_true",
-        help="Non-interactive mode: load credentials from credentials.env, skip all prompts, and run MCP setup automatically after deploy",
+        help="Non-interactive mode: load credentials from credentials.env and skip all prompts",
     )
     args = parser.parse_args()
 
@@ -179,10 +179,10 @@ def main():
 
         cloud = creds.get("TF_VAR_cloud_provider", "").lower()
         region = creds.get("TF_VAR_cloud_region", "")
-        mcp_backend = (creds.get("TF_VAR_mcp_backend") or "lambda").lower()
-        if mcp_backend not in ("lambda", "zapier"):
+        mcp_backend = (creds.get("TF_VAR_mcp_backend") or "bigind").lower()
+        if mcp_backend not in ("lambda", "bigind", "zapier"):
             print(
-                f"Error: TF_VAR_mcp_backend must be 'lambda' or 'zapier' (got '{mcp_backend}')."
+                f"Error: TF_VAR_mcp_backend must be 'lambda', 'bigind', or 'zapier' (got '{mcp_backend}')."
             )
             sys.exit(1)
 
@@ -200,12 +200,12 @@ def main():
             required["TF_VAR_azure_openai_endpoint_raw"] = "Azure OpenAI Endpoint"
             required["TF_VAR_azure_openai_api_key"] = "Azure OpenAI API Key"
 
-        if mcp_backend == "lambda":
+        if mcp_backend == "bigind":
+            required["TF_VAR_bigind_mcp_token"] = "Big Industries MCP Server Token"
+        elif mcp_backend == "lambda":
             required["TF_VAR_mcp_token"] = "Remote MCP Lambda Token (TF_VAR_mcp_token)"
         else:
-            required["TF_VAR_zapier_token"] = (
-                "Remote MCP Zapier Token (TF_VAR_zapier_token)"
-            )
+            required["TF_VAR_zapier_token"] = "Remote MCP Zapier Token (TF_VAR_zapier_token)"
 
         missing = [
             label for key, label in required.items() if not creds.get(key, "").strip()
