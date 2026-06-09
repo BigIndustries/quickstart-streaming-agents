@@ -333,16 +333,28 @@ def main():
     print()
 
     # --- 3. Switch to the workshop org/env immediately after login ---
-    # Environment IDs are globally unique in Confluent Cloud, so
-    # `confluent environment use <env_id>` switches context to the correct
-    # org+env regardless of which org the browser login landed on.
-    # We also attempt `confluent organization use` as belt-and-suspenders
-    # (no-op on CLI versions that don't support it).
-    subprocess.run(["confluent", "organization", "use", org_id], capture_output=True)
-    subprocess.run(
-        ["confluent", "environment", "use", env_id],
-        check=True, capture_output=True,
+    org_result = subprocess.run(
+        ["confluent", "organization", "use", org_id],
+        capture_output=True, text=True,
     )
+    if org_result.returncode != 0:
+        msg = (org_result.stderr or org_result.stdout).strip()
+        print(f"  Warning: could not switch to organisation {org_id}: {msg}")
+        print("  Continuing — will try to switch environment directly.")
+
+    env_result = subprocess.run(
+        ["confluent", "environment", "use", env_id],
+        capture_output=True, text=True,
+    )
+    if env_result.returncode != 0:
+        msg = (env_result.stderr or env_result.stdout).strip()
+        print(f"\nError: could not switch to environment {env_id}.")
+        print(f"  {msg}")
+        print(
+            "\nMake sure the Organisation ID and Environment ID above are correct "
+            "and that your Confluent account has access to that environment."
+        )
+        sys.exit(1)
 
     # Resolve env display name now that context is correct
     env_name = env_id
