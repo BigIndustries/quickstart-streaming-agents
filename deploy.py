@@ -784,7 +784,7 @@ def main():
         print(f"Region: {region}")
         print(f"Deploying: {', '.join(envs_to_deploy)}")
 
-        confirm = input("\nReady to deploy? (y/n): ").strip().lower()
+        confirm = input("\nReady to deploy? (y/n) [default: y]: ").strip().lower() or "y"
         if confirm != "y":
             print("Deployment cancelled.")
             sys.exit(0)
