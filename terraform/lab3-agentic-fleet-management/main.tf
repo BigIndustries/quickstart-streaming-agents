@@ -348,7 +348,7 @@ resource "confluent_flink_statement" "documents_table_lab3" {
 
   statement_name = "documents-create-table-lab3"
 
-  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents` ( document_id STRING, document_text STRING );"
+  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents` ( document_id STRING, document_text STRING, pages STRING, section_reference STRING, title STRING, fraud_categories ARRAY<STRING>, policy_keywords ARRAY<STRING>, char_count INT );"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
