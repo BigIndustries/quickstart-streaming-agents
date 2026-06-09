@@ -28,6 +28,7 @@ from scripts.common.confluent_rest import (
 )
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
+from scripts.common.ui import prompt_with_default
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +38,6 @@ from scripts.common.terraform import get_project_root
 def _name_to_username(name: str) -> str:
     """Derive a safe, short username from a first name.
 
-    Applies the same guardrails as the old email-based derivation:
     alphanumeric + underscores, starts with a letter, max 20 chars.
     """
     clean = re.sub(r"[^a-z0-9]", "_", name.lower()).strip("_")
@@ -79,13 +79,11 @@ def _pick_from_list(items: list, label_fn) -> dict:
         print(f"  Please enter a number between 1 and {len(items)}.")
 
 
-def _cached_prompt(creds: dict, creds_file: Path, env_key: str, label: str) -> str:
-    """Return a cached value from credentials.env, or prompt and cache it."""
+def _prompt_and_cache(creds: dict, creds_file: Path, env_key: str, label: str) -> str:
+    """Prompt with the cached value shown as default. Always displays the prompt.
+    Saves the result back to credentials.env."""
     cached = creds.get(env_key, "").strip()
-    if cached:
-        print(f"  {label}: {cached}  (cached)")
-        return cached
-    value = input(f"  {label}: ").strip()
+    value = prompt_with_default(label, cached)
     if value:
         set_key(str(creds_file), env_key, value)
     return value
@@ -105,12 +103,14 @@ def _collect_workshop_inputs(
     """
     Collect cluster and credential details after org/env context is already set.
 
-    env_id, env_name, and org_id are established before login and passed in.
+    Every field is shown explicitly with its cached value as the default so
+    participants can press Enter to accept or type a new value. Mirrors the
+    organiser wizard experience in deploy.py.
+
     Returns (core_dict, confluent_cloud_api_key, confluent_cloud_api_secret).
     """
-    print("\n=== Workshop Configuration ===")
-    print("The values below come from your workshop organiser.\n")
-    print(f"  Environment: {env_name} ({env_id})")
+    print("\n=== Workshop Configuration ===\n")
+    print(f"  Environment: {env_name} ({env_id})\n")
 
     # ── 1. Kafka cluster ─────────────────────────────────────────────────────
     cluster_id = cluster_name = bootstrap_ep = rest_ep = cloud = region = ""
@@ -121,7 +121,7 @@ def _collect_workshop_inputs(
         if len(clusters) == 1:
             c = clusters[0]
         else:
-            print("\nSelect the workshop Kafka cluster:")
+            print("Select the workshop Kafka cluster:")
             c = _pick_from_list(
                 clusters,
                 lambda item: (
@@ -136,7 +136,7 @@ def _collect_workshop_inputs(
         cloud = _field(c, "cloud", "provider").lower()
         region = _field(c, "region")
 
-        # Describe for any fields missing from the list output
+        # Fill any missing fields from describe
         if not bootstrap_ep or not rest_ep:
             try:
                 d = _confluent_json(["kafka", "cluster", "describe", cluster_id, "--environment", env_id])
@@ -148,7 +148,7 @@ def _collect_workshop_inputs(
             except Exception:
                 pass
     except Exception:
-        cluster_id = _cached_prompt(creds, creds_file, "WORKSHOP_CLUSTER_ID", "Kafka Cluster ID")
+        cluster_id = _prompt_and_cache(creds, creds_file, "WORKSHOP_CLUSTER_ID", "Kafka Cluster ID")
         cluster_name = cluster_id
 
     set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
@@ -168,43 +168,57 @@ def _collect_workshop_inputs(
     except Exception:
         pass
     if not sr_id:
-        sr_id = _cached_prompt(creds, creds_file, "WORKSHOP_SR_ID", "Schema Registry Cluster ID")
+        sr_id = _prompt_and_cache(creds, creds_file, "WORKSHOP_SR_ID", "Schema Registry Cluster ID")
 
     print()
 
     # ── 3. Confluent Cloud API credentials (SA + role-binding creation) ──────
-    api_key = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
-    api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "").strip()
+    print("--- Confluent Cloud API key (ask your organiser) ---")
+    api_key = prompt_with_default(
+        "Confluent Cloud API Key",
+        creds.get("TF_VAR_confluent_cloud_api_key", ""),
+    )
+    api_secret = prompt_with_default(
+        "Confluent Cloud API Secret",
+        creds.get("TF_VAR_confluent_cloud_api_secret", ""),
+    )
     if not api_key or not api_secret:
-        print("Confluent Cloud API key (ask your organiser — used to create your service account):")
-        api_key = input("  API Key   : ").strip()
-        api_secret = input("  API Secret: ").strip()
-        if not api_key or not api_secret:
-            print("Error: Confluent Cloud API credentials are required.")
-            sys.exit(1)
-        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
-        set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
-    else:
-        print(f"  Confluent Cloud API key: {api_key[:8]}...  (cached)")
-    print()
+        print("Error: Confluent Cloud API credentials are required.")
+        sys.exit(1)
+    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
+    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
 
     # ── 4. Admin Kafka credentials (for ACL creation) ────────────────────────
-    print("Admin Kafka API key (ask your organiser — used for ACL setup):")
-    admin_kk = input("  Kafka API Key   : ").strip()
-    admin_ks = input("  Kafka API Secret: ").strip()
+    print("\n--- Admin Kafka API key (ask your organiser) ---")
+    admin_kk = prompt_with_default(
+        "Admin Kafka API Key",
+        creds.get("WORKSHOP_ADMIN_KAFKA_KEY", ""),
+    )
+    admin_ks = prompt_with_default(
+        "Admin Kafka API Secret",
+        creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", ""),
+    )
     if not admin_kk or not admin_ks:
         print("Error: Admin Kafka credentials are required.")
         sys.exit(1)
-    print()
+    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_KEY", admin_kk)
+    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_SECRET", admin_ks)
 
     # ── 5. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
-    print("Big Industries MCP server details (ask your organiser, or press Enter to skip):")
-    bigind_mcp_endpoint = input("  Big Industries MCP URL   : ").strip()
-    bigind_mcp_token    = input("  Big Industries MCP Token : ").strip()
+    print("\n--- Big Industries MCP server (ask your organiser, press Enter to skip) ---")
+    bigind_mcp_endpoint = prompt_with_default(
+        "Big Industries MCP URL",
+        creds.get("TF_VAR_bigind_mcp_endpoint", ""),
+    )
+    bigind_mcp_token = prompt_with_default(
+        "Big Industries MCP Token",
+        creds.get("TF_VAR_bigind_mcp_token", ""),
+    )
     if bigind_mcp_endpoint:
         set_key(str(creds_file), "TF_VAR_bigind_mcp_endpoint", bigind_mcp_endpoint)
     if bigind_mcp_token:
         set_key(str(creds_file), "TF_VAR_bigind_mcp_token", bigind_mcp_token)
+
     print()
 
     # ── Build core dict ───────────────────────────────────────────────────────
@@ -289,20 +303,30 @@ def main():
     # --- 1. Pre-login inputs (no connection needed) ---
     # Collect name and workshop connection details before opening the browser
     # so we can switch to the correct org/env immediately after login.
-    first_name = input("Your first name: ").strip()
+    print("--- Participant details ---")
+    first_name = prompt_with_default("Your first name", creds.get("WORKSHOP_FIRST_NAME", ""))
     if not first_name:
         print("Error: a first name is required.")
         sys.exit(1)
+    set_key(str(creds_file), "WORKSHOP_FIRST_NAME", first_name)
     username = _name_to_username(first_name)
     print(f"  Username prefix: {username}_\n")
 
-    print("Workshop connection details (ask your organiser):")
-    org_id = _cached_prompt(creds, creds_file, "WORKSHOP_ORG_ID", "Organisation ID")
-    env_id = _cached_prompt(creds, creds_file, "WORKSHOP_ENV_ID", "Environment ID")
-    print()
+    print("--- Workshop connection details (ask your organiser) ---")
+    org_id = prompt_with_default(
+        "Confluent Organisation ID",
+        creds.get("WORKSHOP_ORG_ID", ""),
+    )
+    env_id = prompt_with_default(
+        "Confluent Environment ID",
+        creds.get("WORKSHOP_ENV_ID", ""),
+    )
     if not org_id or not env_id:
         print("Error: Organisation ID and Environment ID are required.")
         sys.exit(1)
+    set_key(str(creds_file), "WORKSHOP_ORG_ID", org_id)
+    set_key(str(creds_file), "WORKSHOP_ENV_ID", env_id)
+    print()
 
     # --- 2. Confluent login ---
     confluent_login_interactive(force=args.login)
