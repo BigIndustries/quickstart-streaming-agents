@@ -156,7 +156,7 @@ def main():
 
     print("=== Simple Deployment Tool (single-account mode) ===\n")
     print("ORGANIZER SETUP — run this once to provision the shared environment.")
-    print("Workshop participants should run `uv run workshop` afterwards.\n")
+    print("Workshop participants should run `uv run participate` afterwards.\n")
     if args.testing:
         print("Running in TESTING mode (non-interactive)\n")
 
@@ -169,7 +169,7 @@ def main():
         if not creds_file.exists():
             print("Error: credentials.env not found.")
             print(
-                "Run `uv run deploy` (without --automated/--testing) to be prompted for credentials."
+                "Run `uv run setup` (without --automated/--testing) to be prompted for credentials."
             )
             sys.exit(1)
 
@@ -216,7 +216,7 @@ def main():
             for label in missing:
                 print(f"  - {label}")
             print(
-                "\nRun `uv run deploy` (without --automated/--testing) to be prompted for missing values."
+                "\nRun `uv run setup` (without --automated/--testing) to be prompted for missing values."
             )
             sys.exit(1)
 

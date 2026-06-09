@@ -312,7 +312,7 @@ def save_aws_credentials_file(
 
 ## AWS Bedrock Access Keys
 
-Use these credentials when running `uv run deploy`:
+Use these credentials when running `uv run setup`:
 
 ```
 AWS Access Key ID:     {access_key_id}
@@ -331,7 +331,7 @@ AWS Secret Access Key: {secret_access_key}
 
 2. Run deployment:
    ```bash
-   uv run deploy
+   uv run setup
    ```
 
 3. When prompted, enter the credentials above:
@@ -905,7 +905,7 @@ Using any other region will cause MongoDB connection failures.
 
 ## Azure OpenAI Credentials
 
-Use these credentials when running `uv run deploy`:
+Use these credentials when running `uv run setup`:
 
 ```
 Azure OpenAI Endpoint: {endpoint}
@@ -924,7 +924,7 @@ Azure OpenAI API Key:  {api_key}
 
 2. Run deployment:
    ```bash
-   uv run deploy
+   uv run setup
    ```
 
 3. When prompted, enter the credentials above:

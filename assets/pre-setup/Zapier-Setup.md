@@ -42,11 +42,11 @@ Add these tools to your MCP server:
 
 * Select **Rotate token**. Rotating the token will invalidate the existing connection token, so any clients using the old token must be updated. Confirm by clicking **Rotate token** again.
 
-* Choose **Option 1 (Authorization header — Recommended)** and **copy the token** from the **Token** field. This value is the `zapier_token` parameter required when deploying the lab using `uv run deploy`.
+* Choose **Option 1 (Authorization header — Recommended)** and **copy the token** from the **Token** field. This value is the `zapier_token` parameter required when deploying the lab using `uv run setup`.
 
     <img src="./zapier-screenshots/7.png" alt="Streamable HTTP Token" width="50%" />
 
-The endpoint `https://mcp.zapier.com/api/v1/connect` is the same for all Zapier MCP servers - you only need to copy the token. You will enter this value as the `zapier_token` when deploying labs with `uv run deploy` later.
+The endpoint `https://mcp.zapier.com/api/v1/connect` is the same for all Zapier MCP servers - you only need to copy the token. You will enter this value as the `zapier_token` when deploying labs with `uv run setup` later.
 
 ## :white_check_mark: Checklist
 

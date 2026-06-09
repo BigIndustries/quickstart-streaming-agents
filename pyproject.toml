@@ -73,9 +73,8 @@ dev = [
 
 
 [project.scripts]
-deploy = "deploy:main"
-workshop = "workshop:main"
-workshop-setup = "workshop:main"
+setup = "deploy:main"
+participate = "workshop:main"
 destroy = "scripts.common.destroy:main"
 #
 lab1_datagen = "scripts.lab1_datagen:main"

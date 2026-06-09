@@ -4,7 +4,7 @@ Workshop mode allows participants to deploy the Streaming Agents quickstart usin
 
 **Workflow:**
 1. **Before Workshop**: Organizer creates cloud AI credentials with `uv run api-keys create`
-2. **During Workshop**: Participants run `uv run deploy`, select their cloud provider, and enter LLM credentials
+2. **During Workshop**: Participants run `uv run setup`, select their cloud provider, and enter LLM credentials
 3. **After Workshop**: Organizer immediately revokes credentials with `uv run api-keys destroy`
 
 ---
@@ -79,7 +79,7 @@ This creates:
 2. **Run deployment**
 
    ```bash
-   uv run deploy
+   uv run setup
    ```
 
 3. **Enter credentials when prompted**
@@ -174,7 +174,7 @@ This creates:
 
 2. **Run deployment**
    ```bash
-   uv run deploy
+   uv run setup
    ```
 
 3. **Enter credentials when prompted**

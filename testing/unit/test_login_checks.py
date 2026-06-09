@@ -351,7 +351,7 @@ class TestEnsureConfluentLogin:
         ):
             ensure_confluent_login({})
         out = capsys.readouterr().out
-        assert "uv run deploy" in out
+        assert "uv run setup" in out
 
     def test_error_message_contains_sso_hint(self, capsys):
         with (

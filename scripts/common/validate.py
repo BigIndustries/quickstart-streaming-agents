@@ -809,7 +809,7 @@ Examples:
             print("ERROR: credentials.env not found")
             print("=" * 70)
             print("\nPlease create credentials.env file first.")
-            print("Run: uv run deploy")
+            print("Run: uv run setup")
             print("=" * 70)
             return 0  # Soft check - don't fail
 

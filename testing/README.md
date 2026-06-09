@@ -124,7 +124,7 @@ uv run pytest testing/e2e/test_lab3_workflow.py -v --timeout=5400
 | Test Step | Pass Criteria | Fail Criteria |
 |-----------|--------------|---------------|
 | Workshop Keys | `API-KEYS-<CLOUD>.md` created, no validation warnings | File missing or "cannot validate" warning |
-| Deploy | `uv run deploy --testing` exits 0 | Non-zero exit code or terraform error |
+| Deploy | `uv run setup --testing` exits 0 | Non-zero exit code or terraform error |
 | Data Generation | `ride_requests` >= 28,000 records | < 28,000 after 10 min timeout |
 | Anomaly Detection | `anomalies_per_zone` produces 1-2 records | 0 records or > 2 records |
 | RAG Enrichment | No NULLs in `anomaly_reason`, `top_chunk_*` | Any NULL or empty string |
@@ -191,7 +191,7 @@ testing/
    - Loads `credentials.env` from project root
    - Ensures Confluent CLI is authenticated
    - Creates workshop keys (`uv run workshop-keys create <cloud>`)
-   - Deploys infrastructure (`uv run deploy --testing`)
+   - Deploys infrastructure (`uv run setup --testing`)
    - Extracts SQL from `LAB3-Walkthrough.md`
    - Initializes Flink SQL helper
 
@@ -216,7 +216,7 @@ If you're a workshop participant (not a developer), you **don't need this direct
 ```bash
 # Regular workshop workflow (unchanged)
 uv sync
-uv run deploy
+uv run setup
 ```
 
 The testing infrastructure has zero impact on regular users — test dependencies are only installed when explicitly requested with `uv sync --extra dev`.

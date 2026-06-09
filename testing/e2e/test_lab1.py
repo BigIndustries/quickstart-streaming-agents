@@ -144,7 +144,7 @@ def cloud(request):
 class TestLab1PriceMatch:
     """Lab 1 E2E: price match pipeline from enriched_orders to price_match_results.
 
-    Requires Lab 1 infrastructure already deployed via `uv run deploy`.
+    Requires Lab 1 infrastructure already deployed via `uv run setup`.
     """
 
     @pytest.fixture(scope="class")

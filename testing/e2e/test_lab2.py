@@ -47,7 +47,7 @@ def cloud(request):
 class TestLab2VectorSearch:
     """Lab 2 E2E: vector search and RAG assertions.
 
-    Requires Lab 2 infrastructure already deployed via `uv run deploy`.
+    Requires Lab 2 infrastructure already deployed via `uv run setup`.
     No datagen step — Terraform inserts a sample query during deploy.
     """
 

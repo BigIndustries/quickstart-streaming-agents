@@ -68,7 +68,7 @@ cd quickstart-streaming-agents
 2. **One command deployment:**
 
 ```bash
-uv run deploy
+uv run setup
 ```
 
 That's it! The script will guide you through the setup and deployment of your chosen lab(s).
@@ -81,7 +81,7 @@ quickstart-streaming-agents/
 │   ├── core/                           # Shared Confluent Cloud infra for all labs
 │   ├── lab1-tool-calling/              # Lab1-specific infra
 │   ├── lab2-vector-search/             # Lab2-specific infra
-├── deploy.py                           # Start here with uv run deploy
+├── deploy.py                           # Start here with uv run setup
 └── scripts/                            # Python utilities invoked with uv
 ```
 

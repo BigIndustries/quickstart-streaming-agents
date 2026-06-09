@@ -33,7 +33,7 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
 >
 > **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
 
-- **Remote MCP server backend:** Lab 1 calls a remote MCP server for HTTP fetch and email send. `uv run deploy` will prompt you to choose:
+- **Remote MCP server backend:** Lab 1 calls a remote MCP server for HTTP fetch and email send. `uv run setup` will prompt you to choose:
   - **Confluent-hosted remote MCP server (Recommended)** — No setup on your end; obtain a token by asking your presenter, or, if you're a Confluent employee, see `go/mcp-keys` or `#help-tmm`.
   - **Zapier** — a third-party MCP server. See [Zapier-Setup.md](./assets/pre-setup/Zapier-Setup.md) for setup. Prefer the Confluent-hosted remote MCP server for workshops.
 
@@ -51,7 +51,7 @@ cd quickstart-streaming-agents
 Once you have these credentials ready, run the following command and choose **Lab1** (see [main README](./README.md)):
 
   ```bash
-  uv run deploy
+  uv run setup
   ```
 
 # Getting Started

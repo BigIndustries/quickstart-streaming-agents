@@ -85,7 +85,7 @@ def ensure_confluent_login(creds: Optional[dict] = None) -> None:
         return
     print("\nError: Not logged into Confluent Cloud.")
     print("Please run: confluent login")
-    print("  (or rerun `uv run deploy` to save credentials for auto-login)")
+    print("  (or rerun `uv run setup` to save credentials for auto-login)")
     print("  (SSO accounts: run `confluent login --sso`)")
     print(
         "  (or delete CONFLUENT_EMAIL/CONFLUENT_PASSWORD from credentials.env to re-prompt)"

@@ -364,7 +364,7 @@ def main():
 
     if not state_path.exists():
         print(
-            "Error: terraform/core/terraform.tfstate not found. Run `uv run deploy` first."
+            "Error: terraform/core/terraform.tfstate not found. Run `uv run setup` first."
         )
         sys.exit(1)
 

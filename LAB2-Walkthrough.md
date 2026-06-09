@@ -29,7 +29,7 @@ cd quickstart-streaming-agents
 Use the setup script and select "Lab2" when prompted to automatically deploy Lab2 infrastructure:
 
 ```bash
-uv run deploy
+uv run setup
 ```
 
 The deployment script will:
