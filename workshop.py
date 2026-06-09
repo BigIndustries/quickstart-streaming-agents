@@ -152,10 +152,14 @@ def _collect_workshop_inputs(
         cluster_name = cluster_id
 
     set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
-    subprocess.run(
+    cluster_use = subprocess.run(
         ["confluent", "kafka", "cluster", "use", cluster_id, "--environment", env_id],
-        check=True, capture_output=True,
+        capture_output=True, text=True,
     )
+    if cluster_use.returncode != 0:
+        msg = (cluster_use.stderr or cluster_use.stdout).strip()
+        print(f"\nError: could not select cluster {cluster_id}: {msg}")
+        sys.exit(1)
     print(f"  Cluster    : {cluster_name} ({cluster_id}) — {cloud} {region}")
 
     # ── 2. Schema Registry ───────────────────────────────────────────────────
