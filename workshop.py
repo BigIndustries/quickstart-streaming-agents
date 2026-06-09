@@ -95,48 +95,24 @@ def _cached_prompt(creds: dict, creds_file: Path, env_key: str, label: str) -> s
 # Interactive workshop configuration collection
 # ---------------------------------------------------------------------------
 
-def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, str]:
+def _collect_workshop_inputs(
+    creds: dict,
+    creds_file: Path,
+    env_id: str,
+    env_name: str,
+    org_id: str,
+) -> tuple[dict, str, str]:
     """
-    Interactively collect all organizer-provisioned details needed to participate.
+    Collect cluster and credential details after org/env context is already set.
 
-    Uses the Confluent CLI to auto-discover environment, cluster, and SR details
-    where possible. Only admin credentials must be typed manually.
-
+    env_id, env_name, and org_id are established before login and passed in.
     Returns (core_dict, confluent_cloud_api_key, confluent_cloud_api_secret).
     """
     print("\n=== Workshop Configuration ===")
     print("The values below come from your workshop organiser.\n")
+    print(f"  Environment: {env_name} ({env_id})")
 
-    # ── 1. Environment ───────────────────────────────────────────────────────
-    env_id = env_name = ""
-    try:
-        envs = _confluent_json(["environment", "list"])
-        if not envs:
-            raise ValueError("no accessible environments")
-        if len(envs) == 1:
-            env = envs[0]
-            env_id = env["id"]
-            env_name = _field(env, "name", "display_name", default=env_id)
-            print(f"  Environment: {env_name} ({env_id})")
-        else:
-            print("Select the workshop environment:")
-            env = _pick_from_list(
-                envs,
-                lambda e: f"{_field(e, 'name', 'display_name')} ({e['id']})",
-            )
-            env_id = env["id"]
-            env_name = _field(env, "name", "display_name", default=env_id)
-    except Exception:
-        env_id = _cached_prompt(creds, creds_file, "WORKSHOP_ENV_ID", "Confluent Environment ID")
-        env_name = env_id
-
-    set_key(str(creds_file), "WORKSHOP_ENV_ID", env_id)
-    subprocess.run(
-        ["confluent", "environment", "use", env_id],
-        check=True, capture_output=True,
-    )
-
-    # ── 2. Kafka cluster ─────────────────────────────────────────────────────
+    # ── 1. Kafka cluster ─────────────────────────────────────────────────────
     cluster_id = cluster_name = bootstrap_ep = rest_ep = cloud = region = ""
     try:
         clusters = _confluent_json(["kafka", "cluster", "list", "--environment", env_id])
@@ -182,7 +158,7 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
     )
     print(f"  Cluster    : {cluster_name} ({cluster_id}) — {cloud} {region}")
 
-    # ── 3. Schema Registry ───────────────────────────────────────────────────
+    # ── 2. Schema Registry ───────────────────────────────────────────────────
     sr_id = sr_endpoint = ""
     try:
         sr = _confluent_json(["schema-registry", "cluster", "describe", "--environment", env_id])
@@ -194,32 +170,9 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
     if not sr_id:
         sr_id = _cached_prompt(creds, creds_file, "WORKSHOP_SR_ID", "Schema Registry Cluster ID")
 
-    # ── 4. Organisation ID ───────────────────────────────────────────────────
-    org_id = ""
-    # Try: confluent organization list
-    for cmd in [["organization", "list"], ["iam", "organization", "list"]]:
-        try:
-            orgs = _confluent_json(cmd)
-            if orgs:
-                org_id = _field(orgs[0], "id")
-                break
-        except Exception:
-            continue
-    # Fallback: parse org from the environment CRN
-    if not org_id:
-        try:
-            env_desc = _confluent_json(["environment", "describe", env_id])
-            crn = _field(env_desc, "resource_name")
-            if "organization=" in crn:
-                org_id = crn.split("organization=")[1].split("/")[0]
-        except Exception:
-            pass
-    if not org_id:
-        org_id = _cached_prompt(creds, creds_file, "WORKSHOP_ORG_ID", "Confluent Organisation ID")
-
     print()
 
-    # ── 5. Confluent Cloud API credentials (SA + role-binding creation) ──────
+    # ── 3. Confluent Cloud API credentials (SA + role-binding creation) ──────
     api_key = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
     api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "").strip()
     if not api_key or not api_secret:
@@ -235,7 +188,7 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         print(f"  Confluent Cloud API key: {api_key[:8]}...  (cached)")
     print()
 
-    # ── 6. Admin Kafka credentials (for ACL creation) ────────────────────────
+    # ── 4. Admin Kafka credentials (for ACL creation) ────────────────────────
     print("Admin Kafka API key (ask your organiser — used for ACL setup):")
     admin_kk = input("  Kafka API Key   : ").strip()
     admin_ks = input("  Kafka API Secret: ").strip()
@@ -244,7 +197,7 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         sys.exit(1)
     print()
 
-    # ── 7. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
+    # ── 5. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
     print("Big Industries MCP server details (ask your organiser, or press Enter to skip):")
     bigind_mcp_endpoint = input("  Big Industries MCP URL   : ").strip()
     bigind_mcp_token    = input("  Big Industries MCP Token : ").strip()
@@ -333,11 +286,9 @@ def main():
     creds_file = root / "credentials.env"
     creds = dotenv_values(str(creds_file)) if creds_file.exists() else {}
 
-    # --- 1. Confluent login ---
-    confluent_login_interactive(force=args.login)
-    print()
-
-    # --- 2. Participant name → username ---
+    # --- 1. Pre-login inputs (no connection needed) ---
+    # Collect name and workshop connection details before opening the browser
+    # so we can switch to the correct org/env immediately after login.
     first_name = input("Your first name: ").strip()
     if not first_name:
         print("Error: a first name is required.")
@@ -345,18 +296,50 @@ def main():
     username = _name_to_username(first_name)
     print(f"  Username prefix: {username}_\n")
 
-    # --- 3. Collect all organizer-provisioned workshop details interactively ---
-    core, api_key, api_secret = _collect_workshop_inputs(creds, creds_file)
+    print("Workshop connection details (ask your organiser):")
+    org_id = _cached_prompt(creds, creds_file, "WORKSHOP_ORG_ID", "Organisation ID")
+    env_id = _cached_prompt(creds, creds_file, "WORKSHOP_ENV_ID", "Environment ID")
+    print()
+    if not org_id or not env_id:
+        print("Error: Organisation ID and Environment ID are required.")
+        sys.exit(1)
 
-    env_id       = core["confluent_environment_id"]
-    cluster_id   = core["confluent_kafka_cluster_id"]
-    sr_id        = core["confluent_schema_registry_id"]
-    org_id       = core["confluent_organization_id"]
-    rest_ep      = core["confluent_kafka_cluster_rest_endpoint"]
-    admin_kk     = core["app_manager_kafka_api_key"]
-    admin_ks     = core["app_manager_kafka_api_secret"]
+    # --- 2. Confluent login ---
+    confluent_login_interactive(force=args.login)
+    print()
 
-    # --- 4. Create per-user resources ---
+    # --- 3. Switch to the workshop org/env immediately after login ---
+    # Environment IDs are globally unique in Confluent Cloud, so
+    # `confluent environment use <env_id>` switches context to the correct
+    # org+env regardless of which org the browser login landed on.
+    # We also attempt `confluent organization use` as belt-and-suspenders
+    # (no-op on CLI versions that don't support it).
+    subprocess.run(["confluent", "organization", "use", org_id], capture_output=True)
+    subprocess.run(
+        ["confluent", "environment", "use", env_id],
+        check=True, capture_output=True,
+    )
+
+    # Resolve env display name now that context is correct
+    env_name = env_id
+    try:
+        env_desc = _confluent_json(["environment", "describe", env_id])
+        env_name = _field(env_desc, "name", "display_name", default=env_id)
+    except Exception:
+        pass
+
+    # --- 4. Collect remaining workshop details (cluster, SR, credentials) ---
+    core, api_key, api_secret = _collect_workshop_inputs(
+        creds, creds_file, env_id=env_id, env_name=env_name, org_id=org_id,
+    )
+
+    cluster_id = core["confluent_kafka_cluster_id"]
+    sr_id      = core["confluent_schema_registry_id"]
+    rest_ep    = core["confluent_kafka_cluster_rest_endpoint"]
+    admin_kk   = core["app_manager_kafka_api_key"]
+    admin_ks   = core["app_manager_kafka_api_secret"]
+
+    # --- 5. Create per-user resources ---
     print(f"\n=== Provisioning resources for {username} ===\n")
 
     print("Creating service account...")
