@@ -26,28 +26,42 @@ git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-Use the setup script and select "Lab2" when prompted to automatically deploy Lab2 infrastructure:
+**Self-service (single user):** Run the setup wizard and select **Lab 2**:
 
 ```bash
 uv run setup
 ```
 
-The deployment script will:
-- Prompt you to choose AWS or Azure for your LLM provider
-- Ask for your LLM API credentials (Bedrock keys or Azure OpenAI endpoint/key)
-- Automatically configure MongoDB connection (pre-configured, no setup needed!)
-- Deploy the complete RAG pipeline:
-- **6 Flink tables** for the document-to-response flow (intentionally in alphabetical order from beginning to end of pipeline, to keep things tidy!):
-  - `documents`
-  - `documents_embed`
-  - `documents_vectordb_lab2`
-  - `queries`
-  - `queries_embed`
-  - `search_results`
-  - `search_results_response`
+**Workshop participant:** The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources:
 
-- **LLM models** for embeddings and text generation: `llm_textgen_model` and `llm_embedding_model`
-- **MongoDB sink connector** to stream embeddings from `documents_embed` to Atlas
+```bash
+uv run participate
+```
+
+> [!NOTE]
+> In a workshop, the organizer's `uv run setup` has already deployed the shared pipeline that embeds documents into MongoDB. `uv run participate` creates your personal Flink tables for querying. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
+
+`uv run setup` deploys the complete RAG pipeline. Resources are split between shared (organizer) and per-user (participant):
+
+**Shared resources** (created once by `uv run setup`):
+
+| Resource | Purpose |
+|----------|---------|
+| `documents` | Kafka topic — organizer publishes docs here |
+| `documents_embed` | Kafka topic — Flink embeds docs from `documents` |
+| MongoDB Sink Connector | Streams `documents_embed` → MongoDB Atlas vector store |
+| `documents_vectordb_lab2` | Flink lookup table backed by MongoDB |
+| `llm_textgen_model`, `llm_embedding_model` | Shared LLM models |
+
+**Per-user resources** (created by `uv run participate`, prefixed with your username):
+
+| Resource | Purpose |
+|----------|---------|
+| `{prefix}_queries` | Your query input topic |
+| `{prefix}_queries_embed` | Your queries with embeddings |
+| `{prefix}_documents_vectordb_lab2` | Your personal MongoDB lookup table |
+| `{prefix}_search_results` | Your vector search results |
+| `{prefix}_search_results_response` | Your RAG responses |
 
 ## Using the RAG Pipeline
 
@@ -62,34 +76,49 @@ The lab uses real Confluent Flink documentation as the knowledge base. These pre
 ### Query the RAG System
 
 ```bash
-uv run publish_queries # starts interactive mode (recommended), or:
-uv run publish_queries "How do window functions work in Flink SQL?"
+uv run publish-queries # starts interactive mode (recommended), or:
+uv run publish-queries "How do window functions work in Flink SQL?"
 ```
 
-Your queries land in the `queries` topic, which immediately feeds into `queries_embed`, where we instantly create and save embeddings for each query.
+Your queries land in your personal `{prefix}_queries` topic (e.g. `alice_queries`), which feeds into `{prefix}_queries_embed` where embeddings are created, and then through vector search into `{prefix}_search_results` and `{prefix}_search_results_response`.
 
-The vector search results can be found in the `search_results` table, and the RAG (retrieval-augmented generation) results can be found in the  `search_results_response` table. They contain:
+> [!NOTE]
+> **Workshop participants:** throughout this lab, substitute your personal prefix wherever you see a table name. Your prefix is shown at the end of `uv run participate` output (e.g. `alice`, `john_doe`). So `queries` becomes `alice_queries`, `search_results` becomes `alice_search_results`, and so on.
 
-- Source document snippets with similarity scores comparing query to document text
+The results contain:
+- Source document snippets with similarity scores
 - Document ID
-- AI-generated RAG response to your question based on retrieved documents from the vector store / knowledge base
+- AI-generated RAG response based on retrieved documents
 
 ### View Results in Confluent Cloud
 
-Monitor the pipeline in Confluent Cloud SQL workspace:
+Monitor the pipeline in the Confluent Cloud SQL workspace. Replace `{prefix}` with your username prefix:
 
 ```sql
--- Check data flow through pipeline
+-- Check data flow through your personal pipeline
 SELECT
-  (SELECT COUNT(*) FROM queries) AS queries_count,                                    -- Your questions
-  (SELECT COUNT(*) FROM queries_embed) AS queries_embed_count,                        -- Your questions in vector form
-  (SELECT COUNT(*) FROM search_results) AS search_results_count,                      -- Vector search results
-  (SELECT COUNT(*) FROM search_results_response) AS search_results_response_count;    -- RAG based on vector search results
+  (SELECT COUNT(*) FROM {prefix}_queries) AS queries_count,
+  (SELECT COUNT(*) FROM {prefix}_queries_embed) AS queries_embed_count,
+  (SELECT COUNT(*) FROM {prefix}_search_results) AS search_results_count,
+  (SELECT COUNT(*) FROM {prefix}_search_results_response) AS search_results_response_count;
 
 -- See vector search results
-SELECT * FROM search_results LIMIT 5;
+SELECT * FROM {prefix}_search_results LIMIT 5;
 
 -- View final RAG responses
+SELECT query, response FROM {prefix}_search_results_response LIMIT 5;
+```
+
+**Self-service users** (single deployment, no prefix):
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM queries) AS queries_count,
+  (SELECT COUNT(*) FROM queries_embed) AS queries_embed_count,
+  (SELECT COUNT(*) FROM search_results) AS search_results_count,
+  (SELECT COUNT(*) FROM search_results_response) AS search_results_response_count;
+
+SELECT * FROM search_results LIMIT 5;
 SELECT query, response FROM search_results_response LIMIT 5;
 ```
 
@@ -111,5 +140,4 @@ SELECT query, response FROM search_results_response LIMIT 5;
 
 - **← Back to Overview**: [Main README](./README.md)
 - **← Previous Lab**: [Lab1: Tool Calling Agent](./LAB1-Walkthrough.md)
-- **→ Next Lab**: [Lab3: Agentic Fleet Management](./LAB3-Walkthrough.md)
 - **🧹 Cleanup**: [Cleanup Instructions](./README.md#cleanup)

@@ -48,11 +48,20 @@ git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-Once you have these credentials ready, run the following command and choose **Lab1** (see [main README](./README.md)):
+**Self-service (single user):** Run the setup wizard and choose **Lab 1**:
 
-  ```bash
-  uv run setup
-  ```
+```bash
+uv run setup
+```
+
+**Workshop participant:** The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources and configure MCP:
+
+```bash
+uv run participate
+```
+
+> [!NOTE]
+> In a workshop, the organizer has already deployed the shared infrastructure (`orders`, `products`, `customers` topics, LLM models, MCP connection). `uv run participate` gives your service account read access to those shared topics and configures the MCP server with the organizer's shared credentials.
 
 # Getting Started
 

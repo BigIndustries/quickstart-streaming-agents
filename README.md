@@ -35,7 +35,7 @@ Build real-time AI agents with [Confluent Cloud Streaming Agents](https://docs.c
 **Required tools:**
 
 - **[Confluent CLI](https://docs.confluent.io/confluent-cli/current/overview.html)** - must be logged in
-- **[Docker](https://github.com/docker)** - for Lab1 & Lab3 data generation only
+- **[Docker](https://github.com/docker)** - for Lab1 data generation only
 - **[Git](https://github.com/git/git)**
 - **[Terraform](https://github.com/hashicorp/terraform)**
 - **[uv](https://github.com/astral-sh/uv)**
@@ -58,20 +58,42 @@ winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform Con
 
 ## 🚀 Quick Start
 
-**1. Clone the repository and navigate to the Quickstart directory:**
+**1. Clone the repository:**
 
 ```bash
 git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-2. **One command deployment:**
+### Self-service (single user)
+
+**2. Deploy everything in one step:**
 
 ```bash
 uv run setup
 ```
 
-That's it! The script will guide you through the setup and deployment of your chosen lab(s).
+The script guides you through cloud provider selection, credentials, and deploys your chosen lab(s).
+
+### Workshop mode (organizer + multiple participants)
+
+The workshop uses a single shared Confluent Cloud account. The organizer provisions the shared environment once; each participant then creates their own namespaced resources.
+
+**Organizer** (run once before the workshop):
+
+```bash
+uv run setup
+```
+
+**Each participant** (run individually during the workshop):
+
+```bash
+uv run participate
+```
+
+`uv run participate` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run participate`.
+
+See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for the full organizer checklist.
 
 ## Directory Structure
 
@@ -81,7 +103,8 @@ quickstart-streaming-agents/
 │   ├── core/                           # Shared Confluent Cloud infra for all labs
 │   ├── lab1-tool-calling/              # Lab1-specific infra
 │   ├── lab2-vector-search/             # Lab2-specific infra
-├── deploy.py                           # Start here with uv run setup
+├── deploy.py                           # Organizer: uv run setup
+├── workshop.py                         # Participant: uv run participate
 └── scripts/                            # Python utilities invoked with uv
 ```
 

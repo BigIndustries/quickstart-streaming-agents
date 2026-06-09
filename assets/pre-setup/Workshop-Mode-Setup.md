@@ -1,252 +1,213 @@
 # Workshop Mode Setup Guide
 
-Workshop mode allows participants to deploy the Streaming Agents quickstart using shared cloud AI credentials without requiring an AWS account or Azure subscription.
+This guide describes the **single-account workshop model**: the organizer provisions one shared Confluent Cloud environment once, and each participant runs `uv run participate` to create their own namespaced resources within it.
 
-**Workflow:**
-1. **Before Workshop**: Organizer creates cloud AI credentials with `uv run api-keys create`
-2. **During Workshop**: Participants run `uv run setup`, select their cloud provider, and enter LLM credentials
-3. **After Workshop**: Organizer immediately revokes credentials with `uv run api-keys destroy`
+## How it works
+
+| Role | Command | When |
+|------|---------|------|
+| **Organizer** | `uv run setup` | Once, before the workshop starts |
+| **Each participant** | `uv run participate` | During the workshop |
+
+The organizer's `uv run setup` creates the shared Confluent environment, cluster, LLM connections, models, and source data. Participants cannot start until this is done. Each `uv run participate` then creates a personal service account, API keys, and Flink tables namespaced under the participant's username (derived from their Confluent Cloud email).
 
 ---
 
-# AWS Bedrock Setup
+## Organizer Checklist
 
-## Required Models
+### Step 1 — Obtain LLM credentials
 
-Bedrock model access must be enabled at the AWS account level:
-- **Claude Sonnet 4.5** (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
-- **Amazon Titan Embeddings** (`amazon.titan-embed-text-v1`)
+Participants share the organizer's LLM credentials. Provision them once before the workshop.
 
-> [!WARNING]
->
-> To access Claude Sonnet 4.5 you must request access to the model by filling out an **Anthropic use case form** (or someone in your org must have previously done so) for your cloud region (`us-east-1`). To do so, visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select **Claude Sonnet 4.5** and open it it in the **Playground**, then send a message in the chat - the form will appear automatically.
-
-## For Organizers
-
-### Option 1: Automated (Recommended)
-
-Use the workshop key manager tool:
+**AWS Bedrock (recommended):**
 
 ```bash
-# Create credentials
+# Create a dedicated IAM user with Bedrock-only permissions
 uv run api-keys create
 
-# After workshop - revoke credentials
+# After workshop - immediately revoke
 uv run api-keys destroy
 ```
 
-This creates:
-- IAM user `workshop-bedrock-user` with Bedrock-only permissions
-- Bedrock API keys
-- `API-KEYS-AWS.md` file with API keys and participant instructions, saved automatically in the root directory and auto-populated in `credentials.env`
+This creates an IAM user with minimal Bedrock permissions and writes the keys to `credentials.env`. Alternatively, create the IAM user manually in the AWS Console with this policy:
 
-### Option 2: Manual (AWS Console)
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+    "Resource": "*"
+  }]
+}
+```
 
-1. **Create IAM User**
-   - AWS Console → IAM → Users → Create user
-   - Username: `workshop-bedrock-user`
-   - No console access needed
+> [!WARNING]
+> To access Claude Sonnet 4.5 you must request model access first. Visit the [AWS Bedrock Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select **Claude Sonnet 4.5**, open it in the Playground, and send a message — the access request form appears automatically. Do this well before the workshop.
 
-2. **Attach Policy**
-   - Attach policies directly → Create policy → JSON:
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [{
-       "Effect": "Allow",
-       "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-       "Resource": "*"
-     }]
-   }
-   ```
+**Azure OpenAI:**
 
-3. **Create Access Keys**
-   - User → Security credentials → Create access key
-   - Use case: Third-party service
-   - Save both Access Key ID and Secret Access Key
+```bash
+uv run api-keys create
+uv run api-keys destroy   # after workshop
+```
 
-4. **After Workshop - Revoke**
-   - User → Security credentials → Access keys → Delete
-
-## For Participants
-
-1. **Clone repository**
-   ```bash
-   git clone https://github.com/BigIndustries/quickstart-streaming-agents
-   cd quickstart-streaming-agents
-   ```
-
-2. **Run deployment**
-
-   ```bash
-   uv run setup
-   ```
-
-3. **Enter credentials when prompted**
-   - Cloud provider: Select **aws**
-   - Region: `us-east-1` (by default)
-   - Confluent Cloud API key and secret (auto-generated if desired)
-   - AWS Access Key ID: `<auto-filled if generated with uv run api-keys create>`
-   - AWS Secret Access Key: `<auto-filled if generated with uv run api-keys create>`
+This creates an Azure Cognitive Services account with `gpt-5-mini` and `text-embedding-ada-002` deployments. Requires Azure CLI (`az login`) and an active subscription.
 
 ---
 
-# Azure OpenAI Setup
-
-## Required Models
-
-Azure OpenAI deployments must be created in the organizer's Azure subscription:
-- **gpt-5-mini** (Chat completions, version: 2025-08-07)
-- **text-embedding-ada-002** (Embeddings, version: 2)
-
-> [!WARNING]
->
-> Azure workshop is auto-deployed in **eastus2** region because the hardcoded MongoDB clusters for Lab2 and Lab3 are located in eastus2. Using any other region will cause MongoDB connection failures.
-
-## For Organizers
-
-### Option 1: Automated (Recommended)
-
-Use the workshop key manager tool:
+### Step 2 — Run `uv run setup`
 
 ```bash
-# Create credentials
-uv run api-keys create
+uv run setup
+```
 
-# After workshop - revoke credentials
+The wizard will ask you to choose:
+- Cloud provider (AWS or Azure)
+- LLM credentials
+- Which labs to deploy (Lab 1, Lab 2, or both)
+- Remote MCP backend (Lab 1 only — choose **Confluent-hosted** unless you have a reason not to)
+- MongoDB connection (Lab 2 only — leave blank to use the pre-configured workshop defaults)
+
+`uv run setup` creates the shared resources that all participants will use:
+
+| Resource | Purpose |
+|----------|---------|
+| Confluent Environment + Kafka Cluster | Shared event backbone |
+| Flink Compute Pool | Shared processing for all Flink SQL |
+| LLM connection + models | `llm_textgen_model`, `llm_embedding_model` |
+| **Lab 1**: MCP connection, `remote_mcp_model`, `orders`/`products`/`customers` topics | Source data for price matching |
+| **Lab 2**: MongoDB connection, `documents` topic, `documents_embed` pipeline + MongoDB Sink | Document ingestion and vector store |
+
+This runs once. If you need to deploy additional labs later, re-run `uv run setup` — Terraform will only apply the missing resources.
+
+---
+
+### Step 3 — Generate source data
+
+**Lab 1 — start the data generator:**
+
+```bash
+uv run lab1-datagen
+```
+
+Keep this running throughout the workshop. It produces one order every 2 minutes into the shared `orders`, `products`, and `customers` topics that all participants can read.
+
+**Lab 2 — publish documents to the knowledge base:**
+
+```bash
+uv run publish-docs --lab2
+```
+
+This pushes Flink documentation chunks into the `documents` Kafka topic. The organizer's shared embedding pipeline (`documents` → `documents_embed` → MongoDB) will process them automatically. Participants' vector search queries will work once this pipeline has processed at least one batch of documents (allow ~2 minutes).
+
+---
+
+### Step 4 — Invite participants to the Confluent Cloud organization
+
+Each participant needs a Confluent Cloud account **in the same organization** as the organizer. Invite them via the Confluent Cloud UI: **Organization → IAM → Invite users**.
+
+Participants only need the **MetricsViewer** role at the organization level — `uv run participate` creates all the permissions they need.
+
+---
+
+### Step 5 — Share the Terraform state file with participants
+
+Participants need the organizer's `terraform/core/terraform.tfstate` to discover the shared environment. Distribute it securely (e.g., a shared network drive, a secure Slack DM, or include it in a pre-configured repo fork). Participants place it at `terraform/core/terraform.tfstate` in their local clone.
+
+> [!NOTE]
+> This file contains API credentials. Do not commit it to a public repository or share it over insecure channels.
+
+---
+
+## Participant Checklist
+
+### Step 1 — Clone the repository
+
+```bash
+git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
+cd quickstart-streaming-agents
+```
+
+### Step 2 — Place the shared state file
+
+Get `terraform/core/terraform.tfstate` from the organizer and place it at:
+
+```
+quickstart-streaming-agents/terraform/core/terraform.tfstate
+```
+
+### Step 3 — Log in to Confluent Cloud
+
+```bash
+confluent login
+```
+
+Use the Confluent Cloud account the organizer invited you to.
+
+### Step 4 — Run `uv run participate`
+
+```bash
+uv run participate
+```
+
+The script will:
+1. Derive your username from your Confluent Cloud email (e.g. `alice@example.com` → prefix `alice`)
+2. Create a personal service account `workshop-alice`
+3. Create Kafka, Schema Registry, and Flink API keys
+4. Grant you READ access to the shared source topics (`orders`, `products`, `customers`, `documents`)
+5. Create your personal namespaced Flink tables (e.g. `alice_queries`, `alice_search_results`, etc.)
+6. Configure the MCP server with the organizer's shared credentials
+
+At the end, your credentials are saved to `credentials-alice.env`.
+
+### Step 5 — Follow the lab walkthrough
+
+- **Lab 1**: [LAB1-Walkthrough.md](../../LAB1-Walkthrough.md) — when the walkthrough shows table names like `orders`, those are the shared source topics you can read directly.
+- **Lab 2**: [LAB2-Walkthrough.md](../../LAB2-Walkthrough.md) — when the walkthrough shows table names like `queries` or `search_results`, substitute your prefix (e.g. `alice_queries`, `alice_search_results`).
+
+---
+
+## After the Workshop
+
+**Organizer:**
+
+```bash
+# Destroy all shared Confluent infrastructure
+uv run destroy
+
+# Revoke LLM credentials
 uv run api-keys destroy
 ```
 
-This creates:
-- Resource group with unique ID (e.g., `rg-workshop-openai-abc123`)
-- Azure Cognitive Services account for OpenAI
-- Model deployments for `gpt-5-mini` and `text-embedding-ada-002`
-- `API-KEYS-AZURE.md` file with endpoint, API key, and participant instructions, saved automatically in the root directory and auto-populated in `credentials.env`
+**Participants:**
 
-**Prerequisites:**
-
-- Azure CLI installed and authenticated (`az login`)
-- Active Azure subscription with OpenAI service enabled
-- Permissions to create resource groups and Cognitive Services
-
-### Option 2: Manual (Azure Portal)
-
-1. **Create Resource Group**
-   - Azure Portal → Resource Groups → Create
-   - Name: `rg-workshop-openai-<unique-id>`
-   - Region: **eastus2** (required for workshop mode)
-
-2. **Create Cognitive Services Account**
-   - Azure Portal → Create a resource → Azure OpenAI
-   - Resource group: Use the one created above
-   - Region: **eastus2**
-   - Name: `workshop-openai-<unique-id>`
-   - Pricing tier: Standard S0
-
-3. **Create Model Deployments**
-   - Navigate to Azure OpenAI Studio
-   - Deployments → Create new deployment:
-     - **Deployment 1:**
-       - Model: gpt-5-mini
-       - Version: 2025-08-07
-       - Deployment name: `gpt-5-mini`
-       - Capacity: 50 TPM (adjust based on workshop size)
-     - **Deployment 2:**
-       - Model: text-embedding-ada-002
-       - Version: 2
-       - Deployment name: `text-embedding-ada-002`
-       - Capacity: 120 TPM
-
-4. **Get Credentials**
-   - Keys and Endpoint → Copy Key 1 and Endpoint URL
-
-5. **After Workshop - Revoke**
-   - Delete the model deployments
-   - Optionally delete the entire resource group
-
-## For Participants
-
-1. **Clone repository**
-   ```bash
-   git clone https://github.com/BigIndustries/quickstart-streaming-agents
-   cd quickstart-streaming-agents
-   ```
-
-2. **Run deployment**
-   ```bash
-   uv run setup
-   ```
-
-3. **Enter credentials when prompted**
-   - Cloud provider: Select **azure**
-   - Region: **eastus2** (auto-selected for workshop mode)
-   - Confluent Cloud API key and secret (auto-generated if desired)
-   - Azure OpenAI Endpoint: `<auto-filled if generated with uv run api-keys create>`
-   - Azure OpenAI API Key: `<auto-filled if generated with uv run api-keys create>`
-
----
-
-## Presenter Tips
-
-### Before the Workshop
-
-**Enable Bedrock Models**
-
-- Ensure Claude models are properly activated in your AWS account beforehand
-- If models aren't activated, all calls will fail with a 403 error (not immediately obvious what the issue is)
-- Request model access well in advance to avoid delays
-
-**Create Dedicated IAM Credentials**
-- Create your own IAM role and temporary API keys specifically for the demo
-- For proper scoping and security setup, consult with your security team (e.g., David Marsh has created properly scoped credentials for previous demos)
-- Generate credentials the day before the workshop
-
-### During the Workshop
-
-**Test Queries**
-
-- Use the test queries in Lab 1 to isolate issues if LLMs aren't responding as expected
-- These queries help verify each component is working correctly
-
-**Don't Forget Email Addresses**
-- Remind participants (and yourself!) to add their email address to the big query in Lab 1
-- Easy to forget as everyone naturally wants to copy/paste the query quickly
-
-### Troubleshooting
-
-**Restarting Data Generation**
-- If you need to restart data generation for any reason, drop all tables first before restarting
-- Restarting without dropping tables can cause duplicate customer IDs for different customers
-- This leads to duplicate emails and other downstream issues
+```bash
+# Remove local credential files
+rm credentials*.env
+```
 
 ---
 
 ## Security Notes
 
-**For Organizers:**
-- Generate credentials the day before the workshop, revoke immediately after
-- Don't reuse the same keys across workshops
-- Distribute credentials via secure channels
-
-**For Participants:**
-
-- Never commit credentials to Git
-- Delete credentials from your machine after workshop (tear down resources with `uv run destroy`, then run`rm credentials.env`)
+- Generate LLM credentials the day before the workshop; revoke them immediately after.
+- Do not reuse the same API keys across workshops.
+- Distribute `terraform/core/terraform.tfstate` via secure channels only — it contains Kafka and Flink API keys.
+- Participants: never commit `credentials.env` or `terraform.tfstate` to Git.
 
 ---
 
-## Common Issues
+## Presenter Tips
 
-**AWS: "ResourceNotFoundException: Could not find a model"**
+**Before the workshop:**
+- Enable Bedrock model access at least 24 hours in advance — approval can take time.
+- Run `uv run setup` the evening before to verify everything deploys cleanly.
+- Run `uv run lab1-datagen` for a few minutes to pre-populate the `orders` topic.
+- For Lab 2, run `uv run publish-docs --lab2` and confirm documents appear in MongoDB before participants arrive.
 
-- Bedrock model access not enabled in AWS account
-- ⚠️To access Claude Sonnet 4.5 you must request access to the model by filling out an **Anthropic use case form** (or someone in your org must have previously done so) for your cloud region. To do so, visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select **Claude Sonnet 4.5** and open it it in the **Playground**, then send a message in the chat - the form will appear automatically. ⚠️
-
-**AWS: "AccessDeniedException"**
-
-- IAM policy not attached correctly
-- Verify with: `aws iam get-user-policy --user-name workshop-bedrock-user --policy-name BedrockInvokeOnly`
-
-**AWS: "The security token included in the request is invalid"**
-- Keys revoked or copied incorrectly
-- Generate new keys and re-copy carefully (no spaces/newlines)
+**During the workshop:**
+- Remind participants their table prefix comes from their Confluent email local part (e.g. `john.doe@example.com` → `john_doe`).
+- The `uv run participate` output shows the exact prefix and a summary of what was created.
+- For Lab 2, remind participants to substitute their prefix in every SQL query.
+- Remind Lab 1 participants to add their email address to the price-matching query before running it.
