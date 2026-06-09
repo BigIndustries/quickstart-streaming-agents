@@ -27,7 +27,8 @@ locals {
   effective_mongodb_pass = var.mongodb_password != "" ? var.mongodb_password : local.mongodb_defaults[local.cloud_provider].pass
 
   # Extract hostname from mongodb+srv://hostname
-  mongodb_host = split("//", local.effective_mongodb_conn)[1]
+  # Strip protocol and trailing slash: "mongodb+srv://host/" -> "host"
+  mongodb_host = trimsuffix(split("//", local.effective_mongodb_conn)[1], "/")
 }
 
 # ------------------------------------------------------
@@ -458,6 +459,44 @@ resource "confluent_flink_statement" "documents_embed_insert_into" {
   ]
 }
 
+# Kafka Connect MongoDB Atlas Sink — reads from documents_embed topic and writes
+# (document_id, chunk, embedding) into the MongoDB collection used by VECTOR_SEARCH_AGG.
+resource "confluent_connector" "documents_embed_sink" {
+  environment {
+    id = data.terraform_remote_state.core.outputs.confluent_environment_id
+  }
+  kafka_cluster {
+    id = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_id
+  }
+
+  config_nonsensitive = {
+    "connector.class"          = "MongoDbAtlasSink"
+    "name"                     = "documents-embed-sink"
+    "kafka.auth.mode"          = "SERVICE_ACCOUNT"
+    "kafka.service.account.id" = data.terraform_remote_state.core.outputs.app_manager_service_account_id
+    "topics"                   = "documents_embed"
+    "connection.host"          = local.mongodb_host
+    "database"                 = var.MONGODB_DATABASE
+    "collection"               = var.MONGODB_COLLECTION
+    "tasks.max"                = "1"
+    "input.data.format"        = "AVRO"
+    "schema.context.name"      = "default"
+  }
+
+  config_sensitive = {
+    "connection.user"     = local.effective_mongodb_user
+    "connection.password" = local.effective_mongodb_pass
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  depends_on = [
+    confluent_flink_statement.documents_embed_insert_into
+  ]
+}
+
 # Generate Flink SQL command summary
 resource "null_resource" "generate_flink_sql_summary" {
   # Trigger regeneration when key resources change
@@ -478,6 +517,7 @@ resource "null_resource" "generate_flink_sql_summary" {
     confluent_flink_statement.documents_table,
     confluent_flink_statement.documents_embed_table,
     confluent_flink_statement.documents_embed_insert_into,
+    confluent_connector.documents_embed_sink,
     confluent_flink_statement.search_results_create_table,
     confluent_flink_statement.search_results_response_create_table
   ]
