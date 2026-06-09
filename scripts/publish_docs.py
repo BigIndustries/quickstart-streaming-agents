@@ -481,18 +481,6 @@ def find_docs_directory(
         if generic_path.exists():
             return generic_path
 
-    elif lab == 3:
-        # Lab3: New Orleans event documentation
-        # Standard location
-        standard_path = project_root / "assets" / "lab3" / "nola_events_docs"
-        if standard_path.exists():
-            return standard_path
-
-        # Legacy location with markdown_chunks subdirectory
-        legacy_chunks_path = project_root / "assets" / "lab3" / "markdown_chunks"
-        if legacy_chunks_path.exists():
-            return legacy_chunks_path
-
     return None
 
 
@@ -581,21 +569,14 @@ def main():
         epilog="""
 Examples:
   %(prog)s --lab2
-  %(prog)s --lab3
   %(prog)s --lab2 --dry-run
   %(prog)s --docs-dir temp_pdf_extraction/output_chunks --topic documents
         """,
     )
 
-    # Create mutually exclusive group for lab selection (optional if --docs-dir is provided)
     lab_group = parser.add_mutually_exclusive_group(required=False)
     lab_group.add_argument(
         "--lab2", action="store_true", help="Publish Lab2 Flink SQL documentation"
-    )
-    lab_group.add_argument(
-        "--lab3",
-        action="store_true",
-        help="Publish Lab3 New Orleans event documentation",
     )
 
     parser.add_argument(
@@ -638,16 +619,12 @@ Examples:
         cloud_provider = None
     else:
         # Lab-based publishing (original behavior)
-        if not (args.lab2 or args.lab3):
-            logger.error("Either --lab2, --lab3, or --docs-dir must be specified")
+        if not args.lab2:
+            logger.error("Either --lab2 or --docs-dir must be specified")
             return 1
 
-        if args.lab2:
-            lab = 2
-            lab_name = "Lab2 (Flink SQL documentation)"
-        else:  # args.lab3
-            lab = 3
-            lab_name = "Lab3 (New Orleans event documentation)"
+        lab = 2
+        lab_name = "Lab2 (Flink SQL documentation)"
 
         logger.info(f"Publishing documents for {lab_name}")
 

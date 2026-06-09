@@ -167,97 +167,6 @@ def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
         run_flink_statement(name, sql, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name)
 
 
-def _setup_lab3(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name):
-    """Lab 3 – Agentic Fleet Management: documents_vectordb_lab3, ride_requests."""
-    print("  Creating Lab 3 tables...")
-
-    stmts = [
-        (_stmt(u, "documents-vectordb-lab3-table"),
-         f"CREATE TABLE IF NOT EXISTS `{u}_documents_vectordb_lab3` ("
-         "document_id STRING, chunk STRING, embedding ARRAY<FLOAT>"
-         ") WITH ("
-         "'connector' = 'mongodb',"
-         "'mongodb.connection' = 'mongodb-connection-lab3',"
-         "'mongodb.database' = 'vector_search',"
-         "'mongodb.collection' = 'documents',"
-         "'mongodb.index' = 'vector_index',"
-         "'mongodb.embedding_column' = 'embedding',"
-         "'mongodb.numCandidates' = '500');"),
-
-        # Per-user Kafka sink for embedded docs (reuses lab2 table if already created)
-        (_stmt(u, "documents-embed-table-lab3"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_documents_embed` (document_id STRING, chunk STRING, embedding ARRAY<FLOAT>);"),
-
-        # Streaming: embed documents from shared topic into per-user embedded topic
-        (_stmt(u, "documents-embed-insert-lab3"),
-         f"INSERT INTO `{u}_documents_embed` "
-         "SELECT document_id, document_text AS chunk, embedding "
-         "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
-
-        (_stmt(u, "ride-requests-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_ride_requests` ("
-         "`request_id` STRING NOT NULL, `customer_email` STRING NOT NULL,"
-         "`pickup_zone` STRING NOT NULL, `drop_off_zone` STRING NOT NULL,"
-         "`price` DOUBLE NOT NULL, `number_of_passengers` INT NOT NULL,"
-         "`request_ts` TIMESTAMP(3) WITH LOCAL TIME ZONE NOT NULL,"
-         "WATERMARK FOR `request_ts` AS `request_ts` - INTERVAL '5' SECOND);"),
-    ]
-    for name, sql in stmts:
-        run_flink_statement(name, sql, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name)
-
-
-def _setup_lab4(u, cloud_provider, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name):
-    """Lab 4 – Fraud Detection: claims, fema_policies_vectordb."""
-    print("  Creating Lab 4 tables...")
-
-    if cloud_provider == "azure":
-        vectordb_sql = (
-            f"CREATE TABLE IF NOT EXISTS `{u}_fema_policies_vectordb` ("
-            "document_id STRING, chunk STRING, embedding ARRAY<FLOAT>,"
-            "pages STRING, section_reference STRING, title STRING,"
-            "fraud_categories ARRAY<STRING>, policy_keywords ARRAY<STRING>, char_count INT"
-            ") WITH ("
-            "'connector' = 'cosmosdb',"
-            "'cosmosdb.connection' = 'cosmosdb-connection-lab4',"
-            "'cosmosdb.database' = 'vector_search',"
-            "'cosmosdb.collection' = 'documents',"
-            "'cosmosdb.embedding_column' = 'embedding',"
-            "'cosmosdb.numCandidates' = '500');"
-        )
-    else:
-        vectordb_sql = (
-            f"CREATE TABLE IF NOT EXISTS `{u}_fema_policies_vectordb` ("
-            "document_id STRING, chunk STRING, embedding ARRAY<FLOAT>,"
-            "pages STRING, section_reference STRING, title STRING,"
-            "fraud_categories ARRAY<STRING>, policy_keywords ARRAY<STRING>, char_count INT"
-            ") WITH ("
-            "'connector' = 'mongodb',"
-            "'mongodb.connection' = 'mongodb-connection-lab4',"
-            "'mongodb.database' = 'vector_search',"
-            "'mongodb.collection' = 'documents',"
-            "'mongodb.index' = 'vector_index',"
-            "'mongodb.embedding_column' = 'embedding',"
-            "'mongodb.numCandidates' = '500');"
-        )
-
-    stmts = [
-        (_stmt(u, "claims-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_claims` ("
-         "`claim_id` STRING NOT NULL, `applicant_name` STRING, `city` STRING NOT NULL,"
-         "`is_primary_residence` STRING, `damage_assessed` STRING,"
-         "`claim_amount` STRING NOT NULL, `has_insurance` STRING,"
-         "`insurance_amount` STRING, `claim_narrative` STRING,"
-         "`assessment_date` STRING, `disaster_date` STRING,"
-         "`previous_claims_count` STRING, `last_claim_date` STRING,"
-         "`assessment_source` STRING, `shared_account` STRING,"
-         "`shared_phone` STRING, `claim_timestamp` TIMESTAMP(3) NOT NULL,"
-         "WATERMARK FOR `claim_timestamp` AS `claim_timestamp` - INTERVAL '5' SECOND);"),
-
-        (_stmt(u, "fema-policies-vectordb-table"), vectordb_sql),
-    ]
-    for name, sql in stmts:
-        run_flink_statement(name, sql, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name)
-
 
 # ---------------------------------------------------------------------------
 # Credentials file
@@ -359,22 +268,16 @@ def main():
         [
             "Lab 1: MCP Tool Calling",
             "Lab 2: Vector Search / RAG",
-            "Lab 3: Agentic Fleet Management",
-            "Lab 4: Fraud Detection",
-            "All Labs (1, 2, 3 and 4)",
+            "Both Labs (1 and 2)",
         ],
-        default=5,
+        default=3,
     )
-    if lab_choice == "All Labs (1, 2, 3 and 4)":
-        labs = ["lab1", "lab2", "lab3", "lab4"]
+    if lab_choice == "Both Labs (1 and 2)":
+        labs = ["lab1", "lab2"]
     elif lab_choice == "Lab 1: MCP Tool Calling":
         labs = ["lab1"]
-    elif lab_choice == "Lab 2: Vector Search / RAG":
-        labs = ["lab2"]
-    elif lab_choice == "Lab 3: Agentic Fleet Management":
-        labs = ["lab3"]
     else:
-        labs = ["lab4"]
+        labs = ["lab2"]
 
     # --- 6. Create per-user resources ---
     print(f"\n=== Provisioning resources for {username} ===\n")
@@ -423,10 +326,6 @@ def main():
             _setup_lab1(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
         elif lab == "lab2":
             _setup_lab2(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
-        elif lab == "lab3":
-            _setup_lab3(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
-        elif lab == "lab4":
-            _setup_lab4(username, cloud, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
 
     # --- 8. Save user credentials ---
     _save_user_credentials(root, username, email, kafka_key, kafka_secret, sr_key, sr_secret, core)

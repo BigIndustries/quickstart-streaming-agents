@@ -6,7 +6,7 @@ Lab2: Should return Flink SQL documentation chunks
 Lab3: Should return NOLA events and context information
 
 Usage:
-    uv run test_mongodb_connections [--cloud aws|azure] [--lab lab2|lab3]
+    uv run test_mongodb_connections [--cloud aws|azure] [--lab lab2]
 """
 
 import sys
@@ -35,24 +35,6 @@ MONGODB_CONFIGS = {
             "database": "vector_search",
             "collection": "documents",
             "expected_content": "Flink",
-        },
-    },
-    "lab3": {
-        "aws": {
-            "connection_string": "mongodb+srv://cluster0.w9n3o45.mongodb.net/",
-            "username": "workshop-user",
-            "password": "JHcZajJzWYwKe6dt",
-            "database": "vector_search",
-            "collection": "documents",
-            "expected_content": "New Orleans",
-        },
-        "azure": {
-            "connection_string": "mongodb+srv://cluster0.iir6woe.mongodb.net/",
-            "username": "public_readonly_user",
-            "password": "pE7xOkiKth2QqTKL",
-            "database": "vector_search",
-            "collection": "documents",
-            "expected_content": "New Orleans",
         },
     },
 }
@@ -190,15 +172,14 @@ def main():
     )
     parser.add_argument(
         "--lab",
-        choices=["lab2", "lab3", "all"],
-        default="all",
-        help="Lab to test (default: all)",
+        choices=["lab2"],
+        default="lab2",
+        help="Lab to test (default: lab2)",
     )
 
     args = parser.parse_args()
 
-    # Determine which tests to run
-    labs_to_test = ["lab2", "lab3"] if args.lab == "all" else [args.lab]
+    labs_to_test = [args.lab]
     clouds_to_test = ["aws", "azure"] if args.cloud == "all" else [args.cloud]
 
     print("\n" + "=" * 70)

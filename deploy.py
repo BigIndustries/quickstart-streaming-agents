@@ -226,8 +226,6 @@ def main():
             "core",
             "lab1-tool-calling",
             "lab2-vector-search",
-            "lab3-agentic-fleet-management",
-            "lab4-pubsec-fraud-agents",
         ]
 
         print(f"✓ Credentials loaded from credentials.env")
@@ -317,36 +315,20 @@ def main():
         deploy_options = [
             "Lab 1: MCP Tool Calling",
             "Lab 2: Vector Search / RAG",
-            "Lab 3: Agentic Fleet Management",
-            "Lab 4: FEMA Fraud Detection",
-            "All Labs (Labs 1, 2, 3, and 4)",
+            "Both Labs (1 and 2)",
         ]
-        env_choice = prompt_choice("What would you like to deploy?", deploy_options, default=5)
+        env_choice = prompt_choice("What would you like to deploy?", deploy_options, default=3)
 
-        # Map user-friendly choice to deployment targets (core auto-included for labs)
         if env_choice == "Lab 1: MCP Tool Calling":
             envs_to_deploy = ["core", "lab1-tool-calling"]
         elif env_choice == "Lab 2: Vector Search / RAG":
             envs_to_deploy = ["core", "lab2-vector-search"]
-        elif env_choice == "Lab 3: Agentic Fleet Management":
-            envs_to_deploy = ["core", "lab3-agentic-fleet-management"]
-        elif env_choice == "Lab 4: FEMA Fraud Detection":
-            envs_to_deploy = ["core", "lab4-pubsec-fraud-agents"]
-        elif env_choice == "All Labs (Labs 1, 2, 3, and 4)":
-            envs_to_deploy = [
-                "core",
-                "lab1-tool-calling",
-                "lab2-vector-search",
-                "lab3-agentic-fleet-management",
-                "lab4-pubsec-fraud-agents",
-            ]
+        elif env_choice == "Both Labs (1 and 2)":
+            envs_to_deploy = ["core", "lab1-tool-calling", "lab2-vector-search"]
 
-        # Step 4.5: Remote MCP backend selection (Lab 1 / Lab 3 only)
+        # Step 4.5: Remote MCP backend selection (Lab 1 only)
         mcp_backend = ""
-        if (
-            "lab1-tool-calling" in envs_to_deploy
-            or "lab3-agentic-fleet-management" in envs_to_deploy
-        ):
+        if "lab1-tool-calling" in envs_to_deploy:
             backend_choice = prompt_choice(
                 "Remote MCP server backend:",
                 [
@@ -563,14 +545,11 @@ def main():
                         sys.exit(1)
 
         # Lab-specific credentials
-        if (
-            "lab1-tool-calling" in envs_to_deploy
-            or "lab3-agentic-fleet-management" in envs_to_deploy
-        ):
+        if "lab1-tool-calling" in envs_to_deploy:
             _save_env_safe(creds_file, "TF_VAR_mcp_backend", mcp_backend)
             if mcp_backend == "zapier":
                 zapier_token = prompt_with_default(
-                    "Zapier MCP Server Token (Lab 1 and Lab 3) — see assets/pre-setup/Zapier-Setup.md",
+                    "Zapier MCP Server Token (Lab 1) — see assets/pre-setup/Zapier-Setup.md",
                     creds.get("TF_VAR_zapier_token", ""),
                 )
                 _save_env_safe(creds_file, "TF_VAR_zapier_token", zapier_token)
@@ -587,11 +566,8 @@ def main():
                 )
                 _save_env_safe(creds_file, "TF_VAR_mcp_token", mcp_token)
 
-        # MongoDB credentials (Lab 2 / Lab 3)
-        if (
-            "lab2-vector-search" in envs_to_deploy
-            or "lab3-agentic-fleet-management" in envs_to_deploy
-        ):
+        # MongoDB credentials (Lab 2)
+        if "lab2-vector-search" in envs_to_deploy:
             print("\n--- MongoDB Configuration ---")
             print("Leave blank to use the Confluent-managed workshop defaults.")
             mongodb_conn = prompt_with_default(
@@ -618,15 +594,8 @@ def main():
         _save_env_safe(creds_file, "TF_VAR_cloud_provider", cloud)
 
         # Step 5.5: Validate configurations (advisory only, never blocks deployment)
-        needs_mcp = (
-            "lab1-tool-calling" in envs_to_deploy
-            or "lab3-agentic-fleet-management" in envs_to_deploy
-        )
-        needs_mongodb = (
-            "lab2-vector-search" in envs_to_deploy
-            or "lab3-agentic-fleet-management" in envs_to_deploy
-        )
-        needs_lab4 = "lab4-pubsec-fraud-agents" in envs_to_deploy
+        needs_mcp = "lab1-tool-calling" in envs_to_deploy
+        needs_mongodb = "lab2-vector-search" in envs_to_deploy
 
         print("\n--- Configuration Validation (Advisory Only) ---")
 
@@ -683,7 +652,6 @@ def main():
 
             lab_map = {
                 "lab2-vector-search": "lab2",
-                "lab3-agentic-fleet-management": "lab3",
             }
             mongo_all_ok = True
             for env_name, lab_key in lab_map.items():
@@ -718,53 +686,6 @@ def main():
                 response = input("\nContinue anyway? (y/n): ").strip().lower()
                 if response != "y":
                     sys.exit(1)
-
-        # Validate Lab4 data source
-        if needs_lab4:
-            import logging
-
-            _log = logging.getLogger("deploy.lab4")
-            _log.setLevel(logging.CRITICAL)
-            if cloud == "azure":
-                from scripts.common.test_cosmosdb_credentials import (
-                    test_cosmosdb_access,
-                )
-
-                print("\nChecking Lab4 CosmosDB demo data...")
-                ok, err = test_cosmosdb_access(logger=_log)
-                print(f"  {'✓' if ok else '✗'} CosmosDB workshop demo data reachable")
-                if not ok and err != "no_requests":
-                    print()
-                    print(
-                        "⚠️  WARNING: The Lab4 CosmosDB demo database could not be reached."
-                    )
-                    print(
-                        "   Contact the workshop team or check your network connection."
-                    )
-                    response = input("\nContinue anyway? (y/n): ").strip().lower()
-                    if response != "y":
-                        sys.exit(1)
-            else:
-                from scripts.common.test_mongodb_credentials import (
-                    test_workshop_mongodb,
-                )
-
-                print("\nChecking Lab4 MongoDB demo data...")
-                ok, err = test_workshop_mongodb("lab4", "aws", logger=_log)
-                print(
-                    f"  {'✓' if ok else '✗'} Workshop MongoDB demo data (lab4/aws) reachable"
-                )
-                if not ok and err not in ("no_pymongo", "no_config"):
-                    print()
-                    print(
-                        "⚠️  WARNING: The Lab4 workshop MongoDB demo database could not be reached."
-                    )
-                    print(
-                        "   Contact the workshop team or check your network connection."
-                    )
-                    response = input("\nContinue anyway? (y/n): ").strip().lower()
-                    if response != "y":
-                        sys.exit(1)
 
         print()
 

@@ -138,8 +138,6 @@ def main():
         creds = dotenv_values(str(creds_file))
         cloud = creds.get("TF_VAR_cloud_provider", "").lower()
         envs_to_destroy = [
-            "lab4-pubsec-fraud-agents",
-            "lab3-agentic-fleet-management",
             "lab2-vector-search",
             "lab1-tool-calling",
             "core",
@@ -166,8 +164,6 @@ def main():
 
         # Step 2: Always destroy all environments
         envs_to_destroy = [
-            "lab4-pubsec-fraud-agents",
-            "lab3-agentic-fleet-management",
             "lab2-vector-search",
             "lab1-tool-calling",
             "core",

@@ -46,7 +46,6 @@ def get_manual_commands_for_lab(lab_name: str) -> str:
     markdown_files = {
         "lab1": "LAB1-Walkthrough.md",
         "lab2": "LAB2-Walkthrough.md",
-        "lab3": "Lab3-Walkthrough.md",
     }
 
     if lab_name not in markdown_files:
@@ -178,7 +177,6 @@ def main():
     lab_configs = {
         "lab1": "lab1-tool-calling",
         "lab2": "lab2-vector-search",
-        "lab3": "lab3-agentic-fleet-management",
     }
 
     # Get project root (two levels up from scripts/common)
