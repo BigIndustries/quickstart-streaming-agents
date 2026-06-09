@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -150,7 +151,25 @@ def main():
 
     print(f"  Environment : {env_name} ({env_id})")
     print(f"  Cluster     : {cluster_name} ({cluster_id})")
-    print(f"  Cloud       : {cloud} / {cloud_region}\n")
+    print(f"  Cloud       : {cloud} / {cloud_region}")
+
+    # Point the Confluent CLI at the workshop environment and cluster so the
+    # participant's session is scoped to the right account context.
+    try:
+        subprocess.run(
+            ["confluent", "environment", "use", env_id],
+            check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["confluent", "kafka", "cluster", "use", cluster_id, "--environment", env_id],
+            check=True, capture_output=True, text=True,
+        )
+        print("  ✓ CLI context set to workshop environment/cluster\n")
+    except subprocess.CalledProcessError as e:
+        print(f"\nError: could not switch CLI context to the workshop environment.")
+        print(f"  {e.stderr.strip() or e.stdout.strip()}")
+        print("  Make sure your Confluent account has been added to the workshop organisation.")
+        sys.exit(1)
 
     # --- 4. Confluent Cloud API credentials (for SA / API-key creation) ---
     api_key    = creds.get("TF_VAR_confluent_cloud_api_key", "").strip()
