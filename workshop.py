@@ -125,9 +125,13 @@ def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          "'mongodb.embedding_column' = 'embedding',"
          "'mongodb.numCandidates' = '500');"),
 
-        # Streaming: embed documents from shared topic into per-user MongoDB vector store
+        # Per-user Kafka sink for embedded docs (Kafka → MongoDB via Kafka Connect sink)
+        (_stmt(u, "documents-embed-table"),
+         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_documents_embed` (document_id STRING, chunk STRING, embedding ARRAY<FLOAT>);"),
+
+        # Streaming: embed documents from shared topic into per-user embedded topic
         (_stmt(u, "documents-embed-insert"),
-         f"INSERT INTO `{u}_documents_vectordb_lab2` "
+         f"INSERT INTO `{u}_documents_embed` "
          "SELECT document_id, document_text AS chunk, embedding "
          "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
 
@@ -180,9 +184,13 @@ def _setup_lab3(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          "'mongodb.embedding_column' = 'embedding',"
          "'mongodb.numCandidates' = '500');"),
 
-        # Streaming: embed documents from shared topic into per-user MongoDB vector store
+        # Per-user Kafka sink for embedded docs (reuses lab2 table if already created)
+        (_stmt(u, "documents-embed-table-lab3"),
+         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_documents_embed` (document_id STRING, chunk STRING, embedding ARRAY<FLOAT>);"),
+
+        # Streaming: embed documents from shared topic into per-user embedded topic
         (_stmt(u, "documents-embed-insert-lab3"),
-         f"INSERT INTO `{u}_documents_vectordb_lab3` "
+         f"INSERT INTO `{u}_documents_embed` "
          "SELECT document_id, document_text AS chunk, embedding "
          "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
 

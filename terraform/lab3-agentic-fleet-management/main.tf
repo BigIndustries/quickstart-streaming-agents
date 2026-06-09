@@ -364,7 +364,48 @@ resource "confluent_flink_statement" "documents_table_lab3" {
   ]
 }
 
-# Embed documents and write to MongoDB vector store for Lab3
+# Kafka-backed table for embedded documents (shared with lab2 pipeline via documents_embed topic).
+# documents_embed is created by lab2; this resource is a no-op if lab2 is deployed first.
+resource "confluent_flink_statement" "documents_embed_table_lab3" {
+  organization {
+    id = data.confluent_organization.main.id
+  }
+  environment {
+    id = data.terraform_remote_state.core.outputs.confluent_environment_id
+  }
+  compute_pool {
+    id = data.terraform_remote_state.core.outputs.confluent_flink_compute_pool_id
+  }
+  principal {
+    id = data.terraform_remote_state.core.outputs.app_manager_service_account_id
+  }
+  rest_endpoint = data.confluent_flink_region.lab3_flink_region.rest_endpoint
+  credentials {
+    key    = data.terraform_remote_state.core.outputs.app_manager_flink_api_key
+    secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
+  }
+
+  statement_name = "documents-embed-create-table-lab3"
+
+  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents_embed` ( document_id STRING, chunk STRING, embedding ARRAY<FLOAT> );"
+
+  properties = {
+    "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
+    "sql.current-database" = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  depends_on = [
+    confluent_flink_statement.documents_table_lab3
+  ]
+}
+
+# Streaming pipeline: read documents, generate embeddings, write to documents_embed topic.
+# The MongoDB connector table (documents_vectordb_lab3) is a read-only lookup connector
+# and cannot be the target of INSERT statements in Confluent Cloud Flink.
 resource "confluent_flink_statement" "documents_embed_insert_into_lab3" {
   organization {
     id = data.confluent_organization.main.id
@@ -386,7 +427,7 @@ resource "confluent_flink_statement" "documents_embed_insert_into_lab3" {
 
   statement_name = "documents-embed-insert-into-lab3"
 
-  statement = "INSERT INTO documents_vectordb_lab3 SELECT document_id, document_text AS chunk, embedding FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"
+  statement = "INSERT INTO documents_embed SELECT document_id, document_text AS chunk, embedding FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
@@ -398,8 +439,7 @@ resource "confluent_flink_statement" "documents_embed_insert_into_lab3" {
   }
 
   depends_on = [
-    confluent_flink_statement.documents_table_lab3,
-    confluent_flink_statement.documents_vectordb_lab3
+    confluent_flink_statement.documents_embed_table_lab3
   ]
 }
 
@@ -424,6 +464,7 @@ resource "null_resource" "generate_flink_sql_summary" {
     confluent_flink_statement.remote_mcp_model_lab3_azure,
     confluent_flink_statement.ride_requests_table,
     confluent_flink_statement.documents_table_lab3,
+    confluent_flink_statement.documents_embed_table_lab3,
     confluent_flink_statement.documents_embed_insert_into_lab3
   ]
 }

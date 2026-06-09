@@ -378,7 +378,49 @@ resource "confluent_flink_statement" "documents_table" {
   }
 }
 
-# Embed documents and write to MongoDB vector store
+# Kafka-backed table that stores embedded documents (document_id, chunk, embedding).
+# Populated by the streaming INSERT below; a Kafka Connect MongoDB Atlas Sink
+# connector should be pointed at this topic to push data into the vector store.
+resource "confluent_flink_statement" "documents_embed_table" {
+  statement_name = "documents-embed-create-table"
+
+  organization {
+    id = data.terraform_remote_state.core.outputs.confluent_organization_id
+  }
+  environment {
+    id = data.terraform_remote_state.core.outputs.confluent_environment_id
+  }
+  compute_pool {
+    id = data.terraform_remote_state.core.outputs.confluent_flink_compute_pool_id
+  }
+  principal {
+    id = data.terraform_remote_state.core.outputs.app_manager_service_account_id
+  }
+  rest_endpoint = data.terraform_remote_state.core.outputs.confluent_flink_rest_endpoint
+  credentials {
+    key    = data.terraform_remote_state.core.outputs.app_manager_flink_api_key
+    secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
+  }
+
+  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents_embed` ( document_id STRING, chunk STRING, embedding ARRAY<FLOAT> );"
+
+  properties = {
+    "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
+    "sql.current-database" = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  depends_on = [
+    confluent_flink_statement.documents_table
+  ]
+}
+
+# Streaming pipeline: read documents, generate embeddings, write to documents_embed topic.
+# The MongoDB connector table (documents_vectordb_lab2) is a read-only lookup connector
+# and cannot be the target of INSERT statements in Confluent Cloud Flink.
 resource "confluent_flink_statement" "documents_embed_insert_into" {
   statement_name = "documents-embed-insert-into"
 
@@ -400,7 +442,7 @@ resource "confluent_flink_statement" "documents_embed_insert_into" {
     secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
   }
 
-  statement = "INSERT INTO documents_vectordb_lab2 SELECT document_id, document_text AS chunk, embedding FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"
+  statement = "INSERT INTO documents_embed SELECT document_id, document_text AS chunk, embedding FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
@@ -412,8 +454,7 @@ resource "confluent_flink_statement" "documents_embed_insert_into" {
   }
 
   depends_on = [
-    confluent_flink_statement.documents_table,
-    confluent_flink_statement.documents_vectordb_create_table
+    confluent_flink_statement.documents_embed_table
   ]
 }
 
@@ -435,6 +476,7 @@ resource "null_resource" "generate_flink_sql_summary" {
     confluent_flink_statement.queries_embed_table,
     confluent_flink_statement.documents_vectordb_create_table,
     confluent_flink_statement.documents_table,
+    confluent_flink_statement.documents_embed_table,
     confluent_flink_statement.documents_embed_insert_into,
     confluent_flink_statement.search_results_create_table,
     confluent_flink_statement.search_results_response_create_table
