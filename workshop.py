@@ -20,13 +20,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values, set_key
 
-from scripts.common.confluent_rest import (
-    create_api_key,
-    create_kafka_acls,
-    create_role_binding,
-    get_or_create_service_account,
-)
-from scripts.common.credentials import generate_confluent_api_keys
+from scripts.common.confluent_rest import create_kafka_acls
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
 from scripts.common.ui import prompt_with_default
@@ -187,49 +181,7 @@ def _collect_workshop_inputs(
 
     print()
 
-    # ── 3. Confluent Cloud API credentials ───────────────────────────────────
-    generate = (
-        input("\nGenerate new Confluent Cloud API keys? (y/n) [default: n]: ").strip().lower() or "n"
-    )
-    if generate == "y":
-        gen_key, gen_secret = generate_confluent_api_keys()
-        if gen_key and gen_secret:
-            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", gen_key)
-            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", gen_secret)
-            creds["TF_VAR_confluent_cloud_api_key"] = gen_key
-            creds["TF_VAR_confluent_cloud_api_secret"] = gen_secret
-
-    api_key = prompt_with_default(
-        "Confluent Cloud API Key",
-        creds.get("TF_VAR_confluent_cloud_api_key", ""),
-    )
-    api_secret = prompt_with_default(
-        "Confluent Cloud API Secret",
-        creds.get("TF_VAR_confluent_cloud_api_secret", ""),
-    )
-    if not api_key or not api_secret:
-        print("Error: Confluent Cloud API credentials are required.")
-        sys.exit(1)
-    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
-    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
-
-    # ── 4. Kafka API credentials ──────────────────────────────────────────────
-    print("\n--- Kafka API key ---")
-    admin_kk = prompt_with_default(
-        "Kafka API Key",
-        creds.get("WORKSHOP_ADMIN_KAFKA_KEY", ""),
-    )
-    admin_ks = prompt_with_default(
-        "Kafka API Secret",
-        creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", ""),
-    )
-    if not admin_kk or not admin_ks:
-        print("Error: Kafka API credentials are required.")
-        sys.exit(1)
-    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_KEY", admin_kk)
-    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_SECRET", admin_ks)
-
-    # ── 5. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
+    # ── 3. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
     print("\n--- Big Industries MCP server (ask your organiser, press Enter to skip) ---")
     bigind_mcp_endpoint = prompt_with_default(
         "Big Industries MCP URL",
@@ -259,13 +211,9 @@ def _collect_workshop_inputs(
         "confluent_organization_id":                  org_id,
         "cloud_provider":                             cloud,
         "cloud_region":                               region,
-        "app_manager_kafka_api_key":                  admin_kk,
-        "app_manager_kafka_api_secret":               admin_ks,
-        "confluent_cloud_api_key":                    api_key,
-        "confluent_cloud_api_secret":                 api_secret,
     }
 
-    return core, api_key, api_secret
+    return core
 
 
 # ---------------------------------------------------------------------------
@@ -382,53 +330,54 @@ def main():
     except Exception:
         pass
 
-    # --- 4. Collect remaining workshop details (cluster, SR, credentials) ---
-    core, api_key, api_secret = _collect_workshop_inputs(
+    # --- 4. Collect remaining workshop details (cluster, SR, MCP) ---
+    core = _collect_workshop_inputs(
         creds, creds_file, env_id=env_id, env_name=env_name, org_id=org_id,
     )
 
     cluster_id = core["confluent_kafka_cluster_id"]
     sr_id      = core["confluent_schema_registry_id"]
     rest_ep    = core["confluent_kafka_cluster_rest_endpoint"]
-    admin_kk   = core["app_manager_kafka_api_key"]
-    admin_ks   = core["app_manager_kafka_api_secret"]
 
-    # --- 5. Create per-user resources ---
+    # --- 5. Create per-user API keys via CLI (no service account needed) ---
     print(f"\n=== Provisioning resources for {username} ===\n")
 
-    print("Creating service account...")
-    sa_id, sa_api_version = get_or_create_service_account(username, api_key, api_secret)
-
-    org_crn = f"crn://confluent.cloud/organization={org_id}/environment={env_id}"
-    create_role_binding(sa_id, "FlinkDeveloper", org_crn, api_key, api_secret)
-    print("  ✓ FlinkDeveloper role assigned")
-
-    sr_crn = f"crn://confluent.cloud/organization={org_id}/environment={env_id}/schema-registry={sr_id}"
-    create_role_binding(sa_id, "DeveloperWrite", sr_crn, api_key, api_secret)
-    print("  ✓ DeveloperWrite role assigned on Schema Registry")
-
     print("Creating Kafka API key...")
-    kafka_key, kafka_secret = create_api_key(
-        display_name=f"{username}-kafka-key",
-        description=f"Kafka API key for workshop participant {username}",
-        sa_id=sa_id, sa_api_version=sa_api_version,
-        resource_id=cluster_id, resource_kind="Cluster", resource_api_version="cmk/v2",
-        env_id=env_id, api_key=api_key, api_secret=api_secret,
-    )
+    try:
+        r = subprocess.run(
+            ["confluent", "api-key", "create", "--resource", cluster_id, "--output", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        kdata = json.loads(r.stdout)
+        kafka_key    = kdata.get("key", "")
+        kafka_secret = kdata.get("secret", "")
+        owner        = kdata.get("owner", {})
+        user_id      = owner.get("id", "") if isinstance(owner, dict) else ""
+        if not kafka_key or not kafka_secret:
+            raise ValueError(f"unexpected output: {r.stdout.strip()}")
+    except Exception as exc:
+        print(f"\nError: could not create Kafka API key: {exc}")
+        sys.exit(1)
     print(f"  ✓ Kafka API key: {kafka_key}")
 
     print("Creating Schema Registry API key...")
-    sr_key, sr_secret = create_api_key(
-        display_name=f"{username}-sr-key",
-        description=f"Schema Registry API key for workshop participant {username}",
-        sa_id=sa_id, sa_api_version=sa_api_version,
-        resource_id=sr_id, resource_kind="SchemaRegistryCluster", resource_api_version="srcm/v3",
-        env_id=env_id, api_key=api_key, api_secret=api_secret,
-    )
+    try:
+        r = subprocess.run(
+            ["confluent", "api-key", "create", "--resource", sr_id, "--output", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        sdata     = json.loads(r.stdout)
+        sr_key    = sdata.get("key", "")
+        sr_secret = sdata.get("secret", "")
+        if not sr_key or not sr_secret:
+            raise ValueError(f"unexpected output: {r.stdout.strip()}")
+    except Exception as exc:
+        print(f"\nError: could not create Schema Registry API key: {exc}")
+        sys.exit(1)
     print(f"  ✓ Schema Registry API key: {sr_key}")
 
     print("Creating Kafka ACLs...")
-    create_kafka_acls(username, sa_id, cluster_id, rest_ep, admin_kk, admin_ks)
+    create_kafka_acls(username, user_id, cluster_id, rest_ep, kafka_key, kafka_secret)
 
     # --- 6. Lab access summary ---
     print("\nLab access:")

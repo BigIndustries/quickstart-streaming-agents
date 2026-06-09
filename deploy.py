@@ -119,8 +119,14 @@ def _flush_pending_writes(creds_file) -> None:
         sys.exit(1)
 
 
-def _grant_org_admin_to_all_users() -> None:
-    """Grant OrganizationAdmin to every current org member so participants can run uv run user."""
+def _grant_workshop_permissions(env_id: str, cluster_id: str) -> None:
+    """Grant EnvironmentAdmin + CloudClusterAdmin to all org members.
+
+    EnvironmentAdmin covers Schema Registry access within the environment.
+    CloudClusterAdmin covers Kafka topic/ACL management on the cluster.
+    Together these are sufficient for participants to run uv run user without
+    needing OrganizationAdmin.
+    """
     import json as _json
     try:
         r = subprocess.run(
@@ -137,19 +143,27 @@ def _grant_org_admin_to_all_users() -> None:
         user_id = user.get("id") or user.get("resource_id") or ""
         if not user_id:
             continue
-        result = subprocess.run(
+        r_env = subprocess.run(
             ["confluent", "iam", "rbac", "role-binding", "create",
-             "--principal", f"User:{user_id}", "--role", "OrganizationAdmin"],
+             "--principal", f"User:{user_id}", "--role", "EnvironmentAdmin",
+             "--environment", env_id],
             capture_output=True, text=True,
         )
-        if result.returncode == 0:
+        r_cluster = subprocess.run(
+            ["confluent", "iam", "rbac", "role-binding", "create",
+             "--principal", f"User:{user_id}", "--role", "CloudClusterAdmin",
+             "--environment", env_id, "--cloud-cluster", cluster_id],
+            capture_output=True, text=True,
+        )
+        combined = (r_env.stderr + r_env.stdout + r_cluster.stderr + r_cluster.stdout).lower()
+        if r_env.returncode == 0 or r_cluster.returncode == 0:
             granted += 1
-        elif "already exists" in (result.stderr + result.stdout).lower():
+        elif "already exists" in combined:
             already += 1
         else:
             failed += 1
 
-    print(f"  ✓ OrganizationAdmin granted: {granted} new, {already} already set" +
+    print(f"  ✓ Workshop permissions granted: {granted} users updated, {already} already set" +
           (f", {failed} failed" if failed else ""))
 
 
@@ -322,14 +336,6 @@ def main():
         # 0b. Final assurance — works whether just authenticated, already logged in, or has saved creds
         ensure_confluent_login(env_creds)
         print("✓ Confluent CLI logged in")
-
-        # Step 0c: Grant OrganizationAdmin to all org members (for workshop participants)
-        grant = (
-            input("\nGrant OrganizationAdmin to all org members so participants can run `uv run user`? (y/n) [default: y]: ")
-            .strip().lower() or "y"
-        )
-        if grant == "y":
-            _grant_org_admin_to_all_users()
 
         # Step 1: Select cloud provider
         cloud = prompt_choice("Select cloud provider:", ["aws", "azure"], default=1)
@@ -784,7 +790,7 @@ def main():
 
     print("\n✓ All deployments completed successfully!")
 
-    # Display the environment name from core Terraform state
+    # Read core Terraform outputs (env name, env ID, cluster ID)
     core_state_path = root / "terraform" / "core" / "terraform.tfstate"
     if core_state_path.exists():
         try:
@@ -793,6 +799,17 @@ def main():
                 print(
                     f"\nEnvironment name: {core_outputs['confluent_environment_display_name']}"
                 )
+            env_id_out     = core_outputs.get("confluent_environment_id", "")
+            cluster_id_out = core_outputs.get("confluent_kafka_cluster_id", "")
+            if env_id_out and cluster_id_out:
+                grant = (
+                    input(
+                        "\nGrant workshop permissions (EnvironmentAdmin + CloudClusterAdmin) "
+                        "to all org members so participants can run `uv run user`? (y/n) [default: y]: "
+                    ).strip().lower() or "y"
+                )
+                if grant == "y":
+                    _grant_workshop_permissions(env_id_out, cluster_id_out)
         except Exception as e:
             print(f"\n⚠ Could not read Terraform outputs: {e}")
 
