@@ -23,14 +23,6 @@ Build real-time AI agents with [Confluent Cloud Streaming Agents](https://docs.c
 <td><a href="./LAB2-Walkthrough.md"><strong>Lab2 - Vector Search & RAG</strong></a></td>
 <td>Vector search pipeline template with retrieval augmented generation (RAG). Use the included Flink documentation chunks, or bring your own documents for intelligent document retrieval.<br><br><img src="./assets/lab2/00_lab2_architecture.png" alt="Lab2 architecture diagram"></td>
 </tr>
-<tr>
-<td><a href="./LAB3-Walkthrough.md"><strong>Lab3 - Agentic Fleet Management Using Confluent Intelligence</strong></a></td>
-    <td>End-to-end boat fleet management demo showing use of Agent Definition, MCP tool calling, vector search, and <a href="https://docs.confluent.io/cloud/current/ai/builtin-functions/detect-anomalies.html">anomaly detection</a>.<br><br><img src="./assets/lab3/lab3-architecture.png" alt="Lab3 architecture diagram"></td>
-</tr>
-<tr>
-<td><a href="./LAB4-Walkthrough.md"><strong>Lab4 - Public Sector Insurance Claims Fraud Detection Using Confluent Intelligence</strong></a></td>
-<td>Real-time fraud detection system that autonomously identifies suspicious claim patterns in disaster insurance claims applications using anomaly detection, pattern recognition, and LLM-powered analysis.<br><br><img src="./assets/lab4/lab4-architecture.png" alt="Lab4 architecture diagram"></td>
-</tr>
 </table>
 
 ## Prerequisites
@@ -89,8 +81,6 @@ quickstart-streaming-agents/
 │   ├── core/                           # Shared Confluent Cloud infra for all labs
 │   ├── lab1-tool-calling/              # Lab1-specific infra
 │   ├── lab2-vector-search/             # Lab2-specific infra
-│   └── lab3-agentic-fleet-management/  # Lab3-specific infra
-│   └── lab4-pubsec-fraud-agents        # Lab4-specific infra
 ├── deploy.py                           # Start here with uv run deploy
 └── scripts/                            # Python utilities invoked with uv
 ```
