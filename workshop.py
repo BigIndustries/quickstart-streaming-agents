@@ -104,7 +104,7 @@ def _save_user_credentials(root: Path, username: str, email: str, kafka_key: str
 def main():
     parser = argparse.ArgumentParser(description="Workshop participant setup")
     parser.add_argument(
-        "--new",
+        "--login",
         action="store_true",
         help="Force a fresh Confluent login even if already authenticated.",
     )
@@ -117,7 +117,7 @@ def main():
     creds = dotenv_values(str(creds_file)) if creds_file.exists() else {}
 
     # --- 1. Confluent login ---
-    confluent_login_interactive(force=args.new)
+    confluent_login_interactive(force=args.login)
     print()
 
     # --- 2. Participant email → username ---
