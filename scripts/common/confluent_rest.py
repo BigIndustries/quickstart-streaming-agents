@@ -115,12 +115,25 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   "documents",     "LITERAL",  "READ"),
         ("TOPIC",   "documents",     "LITERAL",  "DESCRIBE"),
         # Shared Lab1 source topics — participants can query these with their own Flink key
-        ("TOPIC",   "orders",        "LITERAL",  "READ"),
-        ("TOPIC",   "orders",        "LITERAL",  "DESCRIBE"),
-        ("TOPIC",   "products",      "LITERAL",  "READ"),
-        ("TOPIC",   "products",      "LITERAL",  "DESCRIBE"),
-        ("TOPIC",   "customers",     "LITERAL",  "READ"),
-        ("TOPIC",   "customers",     "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "orders",                 "LITERAL",  "READ"),
+        ("TOPIC",   "orders",                 "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "products",               "LITERAL",  "READ"),
+        ("TOPIC",   "products",               "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "customers",              "LITERAL",  "READ"),
+        ("TOPIC",   "customers",              "LITERAL",  "DESCRIBE"),
+        # Shared Lab2 pipeline topics — participants can read and write
+        ("TOPIC",   "queries",                "LITERAL",  "READ"),
+        ("TOPIC",   "queries",                "LITERAL",  "WRITE"),
+        ("TOPIC",   "queries",                "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "queries_embed",          "LITERAL",  "READ"),
+        ("TOPIC",   "queries_embed",          "LITERAL",  "WRITE"),
+        ("TOPIC",   "queries_embed",          "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "search_results",         "LITERAL",  "READ"),
+        ("TOPIC",   "search_results",         "LITERAL",  "WRITE"),
+        ("TOPIC",   "search_results",         "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "search_results_response","LITERAL",  "READ"),
+        ("TOPIC",   "search_results_response","LITERAL",  "WRITE"),
+        ("TOPIC",   "search_results_response","LITERAL",  "DESCRIBE"),
     ]
     for resource_type, resource_name, pattern_type, operation in entries:
         kafka_rest(

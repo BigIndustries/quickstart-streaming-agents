@@ -256,6 +256,12 @@ def main():
     create_role_binding(sa_id, "FlinkDeveloper", org_crn, api_key, api_secret)
     print(f"  ✓ FlinkDeveloper role assigned")
 
+    # DeveloperWrite on Schema Registry so the SA can read and register schemas
+    # for all shared topics (queries, search_results, etc.)
+    sr_crn = f"crn://confluent.cloud/organization={org_id}/environment={env_id}/schema-registry={sr_id}"
+    create_role_binding(sa_id, "DeveloperWrite", sr_crn, api_key, api_secret)
+    print(f"  ✓ DeveloperWrite role assigned on Schema Registry")
+
     # Kafka API key
     print("Creating Kafka API key...")
     kafka_key, kafka_secret = create_api_key(
