@@ -155,7 +155,7 @@ def main():
 
     print("=== Simple Deployment Tool (single-account mode) ===\n")
     print("ORGANIZER SETUP — run this once to provision the shared environment.")
-    print("Workshop participants should run `uv run participate` afterwards.\n")
+    print("Workshop participants should run `uv run user` afterwards.\n")
     if args.testing:
         print("Running in TESTING mode (non-interactive)\n")
 

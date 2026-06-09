@@ -35,11 +35,11 @@ uv run setup
 **Workshop participant:** The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources:
 
 ```bash
-uv run participate
+uv run user
 ```
 
 > [!NOTE]
-> In a workshop, the organizer's `uv run setup` has already deployed the full shared pipeline. `uv run participate` grants your service account access to the shared topics. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
+> In a workshop, the organizer's `uv run setup` has already deployed the full shared pipeline. `uv run user` grants your service account access to the shared topics. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
 
 `uv run setup` deploys the complete RAG pipeline. Resources are split between shared (organizer) and per-user (participant):
 
@@ -53,7 +53,7 @@ uv run participate
 | `documents_vectordb_lab2` | Flink lookup table backed by MongoDB |
 | `llm_textgen_model`, `llm_embedding_model` | Shared LLM models |
 
-**Participant access** (granted by `uv run participate`):
+**Participant access** (granted by `uv run user`):
 
 | Topic | Access | Purpose |
 |-------|--------|---------|

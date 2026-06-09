@@ -1,15 +1,15 @@
 # Workshop Mode Setup Guide
 
-This guide describes the **single-account workshop model**: the organizer provisions one shared Confluent Cloud environment once, and each participant runs `uv run participate` to create their own namespaced resources within it.
+This guide describes the **single-account workshop model**: the organizer provisions one shared Confluent Cloud environment once, and each participant runs `uv run user` to create their own namespaced resources within it.
 
 ## How it works
 
 | Role | Command | When |
 |------|---------|------|
 | **Organizer** | `uv run setup` | Once, before the workshop starts |
-| **Each participant** | `uv run participate` | During the workshop |
+| **Each participant** | `uv run user` | During the workshop |
 
-The organizer's `uv run setup` creates the shared Confluent environment, cluster, LLM connections, models, and source data. Participants cannot start until this is done. Each `uv run participate` then creates a personal service account, API keys, and Flink tables namespaced under the participant's username (derived from their Confluent Cloud email).
+The organizer's `uv run setup` creates the shared Confluent environment, cluster, LLM connections, models, and source data. Participants cannot start until this is done. Each `uv run user` then creates a personal service account, API keys, and Flink tables namespaced under the participant's username (derived from their Confluent Cloud email).
 
 ---
 
@@ -107,7 +107,7 @@ This pushes Flink documentation chunks into the `documents` Kafka topic. The org
 
 Each participant needs a Confluent Cloud account **in the same organization** as the organizer. Invite them via the Confluent Cloud UI: **Organization → IAM → Invite users**.
 
-Participants only need the **MetricsViewer** role at the organization level — `uv run participate` creates all the permissions they need.
+Participants only need the **MetricsViewer** role at the organization level — `uv run user` creates all the permissions they need.
 
 ---
 
@@ -145,10 +145,10 @@ confluent login
 
 Use the Confluent Cloud account the organizer invited you to.
 
-### Step 4 — Run `uv run participate`
+### Step 4 — Run `uv run user`
 
 ```bash
-uv run participate
+uv run user
 ```
 
 The script will:
@@ -208,6 +208,6 @@ rm credentials*.env
 
 **During the workshop:**
 - Remind participants their table prefix comes from their Confluent email local part (e.g. `john.doe@example.com` → `john_doe`).
-- The `uv run participate` output shows the exact prefix and a summary of what was created.
+- The `uv run user` output shows the exact prefix and a summary of what was created.
 - For Lab 2, remind participants to substitute their prefix in every SQL query.
 - Remind Lab 1 participants to add their email address to the price-matching query before running it.

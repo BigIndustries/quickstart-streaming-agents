@@ -88,10 +88,10 @@ uv run setup
 **Each participant** (run individually during the workshop):
 
 ```bash
-uv run participate
+uv run user
 ```
 
-`uv run participate` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run participate`.
+`uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
 
 See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for the full organizer checklist.
 
@@ -104,7 +104,7 @@ quickstart-streaming-agents/
 │   ├── lab1-tool-calling/              # Lab1-specific infra
 │   ├── lab2-vector-search/             # Lab2-specific infra
 ├── deploy.py                           # Organizer: uv run setup
-├── workshop.py                         # Participant: uv run participate
+├── workshop.py                         # Participant: uv run user
 └── scripts/                            # Python utilities invoked with uv
 ```
 
