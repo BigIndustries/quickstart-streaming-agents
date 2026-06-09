@@ -114,44 +114,54 @@ def _collect_workshop_inputs(
 
     # ── 1. Kafka cluster ─────────────────────────────────────────────────────
     cluster_id = cluster_name = bootstrap_ep = rest_ep = cloud = region = ""
+    discovered_clusters: list = []
     try:
-        clusters = _confluent_json(["kafka", "cluster", "list", "--environment", env_id])
-        if not clusters:
+        discovered_clusters = _confluent_json(["kafka", "cluster", "list", "--environment", env_id])
+        if not discovered_clusters:
             raise ValueError("no clusters found")
-        if len(clusters) == 1:
-            c = clusters[0]
+        if len(discovered_clusters) == 1:
+            suggested_id = discovered_clusters[0]["id"]
         else:
             print("Select the workshop Kafka cluster:")
-            c = _pick_from_list(
-                clusters,
+            picked = _pick_from_list(
+                discovered_clusters,
                 lambda item: (
                     f"{_field(item, 'name')} ({item['id']}) — "
                     f"{_field(item, 'cloud', 'provider')} {_field(item, 'region')}"
                 ),
             )
-        cluster_id = c["id"]
+            suggested_id = picked["id"]
+    except Exception:
+        suggested_id = creds.get("WORKSHOP_CLUSTER_ID", "")
+
+    # Always show the prompt so the user can see and confirm the cluster ID.
+    cluster_id = prompt_with_default(
+        "Kafka Cluster ID",
+        suggested_id or creds.get("WORKSHOP_CLUSTER_ID", ""),
+    )
+    if not cluster_id:
+        print("Error: Kafka Cluster ID is required.")
+        sys.exit(1)
+    set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
+
+    # Fetch metadata for the confirmed cluster ID.
+    c = next((x for x in discovered_clusters if x["id"] == cluster_id), None)
+    if c:
         cluster_name = _field(c, "name", default=cluster_id)
         bootstrap_ep = _field(c, "bootstrap_endpoint")
         rest_ep = _field(c, "rest_endpoint")
         cloud = _field(c, "cloud", "provider").lower()
         region = _field(c, "region")
-
-        # Fill any missing fields from describe
-        if not bootstrap_ep or not rest_ep:
-            try:
-                d = _confluent_json(["kafka", "cluster", "describe", cluster_id, "--environment", env_id])
-                bootstrap_ep = bootstrap_ep or _field(d, "bootstrap_endpoint")
-                rest_ep = rest_ep or _field(d, "rest_endpoint")
-                cloud = cloud or _field(d, "cloud", "provider").lower()
-                region = region or _field(d, "region")
-                cluster_name = cluster_name or _field(d, "name", default=cluster_id)
-            except Exception:
-                pass
-    except Exception:
-        cluster_id = _prompt_and_cache(creds, creds_file, "WORKSHOP_CLUSTER_ID", "Kafka Cluster ID")
-        cluster_name = cluster_id
-
-    set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
+    if not bootstrap_ep or not rest_ep:
+        try:
+            d = _confluent_json(["kafka", "cluster", "describe", cluster_id, "--environment", env_id])
+            bootstrap_ep = bootstrap_ep or _field(d, "bootstrap_endpoint")
+            rest_ep = rest_ep or _field(d, "rest_endpoint")
+            cloud = cloud or _field(d, "cloud", "provider").lower()
+            region = region or _field(d, "region")
+            cluster_name = cluster_name or _field(d, "name", default=cluster_id)
+        except Exception:
+            pass
     cluster_use = subprocess.run(
         ["confluent", "kafka", "cluster", "use", cluster_id],
         capture_output=True, text=True,
