@@ -497,6 +497,38 @@ resource "confluent_connector" "documents_embed_sink" {
   ]
 }
 
+# Set 1-hour retention on all Lab2 Kafka topics after they are created by Flink
+resource "null_resource" "set_lab2_topic_retention" {
+  triggers = {
+    documents                = confluent_flink_statement.documents_table.id
+    documents_embed          = confluent_flink_statement.documents_embed_table.id
+    queries                  = confluent_flink_statement.queries_table.id
+    queries_embed            = confluent_flink_statement.queries_embed_table.id
+    search_results           = confluent_flink_statement.search_results_create_table.id
+    search_results_response  = confluent_flink_statement.search_results_response_create_table.id
+  }
+
+  provisioner "local-exec" {
+    command = "cd '${path.module}/../..' && uv run python scripts/set_topic_retention.py"
+    environment = {
+      TOPICS        = "documents documents_embed queries queries_embed search_results search_results_response"
+      CLUSTER_ID    = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_id
+      REST_ENDPOINT = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_rest_endpoint
+      KAFKA_KEY     = data.terraform_remote_state.core.outputs.app_manager_kafka_api_key
+      KAFKA_SECRET  = data.terraform_remote_state.core.outputs.app_manager_kafka_api_secret
+    }
+  }
+
+  depends_on = [
+    confluent_flink_statement.documents_table,
+    confluent_flink_statement.documents_embed_table,
+    confluent_flink_statement.queries_table,
+    confluent_flink_statement.queries_embed_table,
+    confluent_flink_statement.search_results_create_table,
+    confluent_flink_statement.search_results_response_create_table,
+  ]
+}
+
 # Generate Flink SQL command summary
 resource "null_resource" "generate_flink_sql_summary" {
   # Trigger regeneration when key resources change

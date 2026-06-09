@@ -22,6 +22,7 @@ from scripts.common.confluent_rest import (
     create_role_binding,
     get_or_create_service_account,
     run_flink_statement,
+    set_topic_retention,
 )
 from scripts.common.login_checks import ensure_confluent_login
 from scripts.common.terraform import get_project_root, run_terraform_output
@@ -301,10 +302,21 @@ def main():
         elif lab == "lab2":
             _setup_lab2(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
 
-    # --- 8. Save user credentials ---
+    # --- 8. Set 1-hour retention on per-user Kafka topics ---
+    if "lab2" in labs:
+        print("\nSetting topic retention (1 hour)...")
+        for topic in [
+            f"{username}_queries",
+            f"{username}_queries_embed",
+            f"{username}_search_results",
+            f"{username}_search_results_response",
+        ]:
+            set_topic_retention(topic, cluster_id, rest_ep, admin_kk, admin_ks)
+
+    # --- 9. Save user credentials ---
     _save_user_credentials(root, username, email, kafka_key, kafka_secret, sr_key, sr_secret, core)
 
-    # --- 9. Configure MCP using the organizer's shared credentials ---
+    # --- 10. Configure MCP using the organizer's shared credentials ---
     print("\nConfiguring MCP server...")
     setup_mcp_for_outputs(core, root)
 

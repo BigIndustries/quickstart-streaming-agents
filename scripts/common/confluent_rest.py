@@ -156,6 +156,29 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
     print(f"  ✓ Kafka ACLs created (prefix: {prefix})")
 
 
+def set_topic_retention(topic_name, cluster_id, rest_endpoint, kafka_key, kafka_secret, retention_ms=3600000):
+    """Set retention.ms on a Kafka topic. Retries up to 3 times if the topic isn't visible yet."""
+    path = f"/kafka/v3/clusters/{cluster_id}/topics/{topic_name}/configs:alter"
+    body = {"data": [{"name": "retention.ms", "value": str(retention_ms)}]}
+    url = f"{rest_endpoint.rstrip('/')}{path}"
+    for attempt in range(3):
+        resp = requests.request(
+            "POST", url,
+            auth=(kafka_key, kafka_secret),
+            json=body,
+            headers={"Content-Type": "application/json"},
+            timeout=_TIMEOUT,
+        )
+        if resp.ok:
+            print(f"    ✓ {topic_name}: retention set to {retention_ms // 3600000}h")
+            return
+        if resp.status_code == 404 and attempt < 2:
+            time.sleep(5)
+            continue
+        print(f"    ⚠ Could not set retention on {topic_name}: HTTP {resp.status_code}", file=sys.stderr)
+        return
+
+
 def run_flink_statement(stmt_name, sql, org_id, env_id, pool_id, sa_id, flink_endpoint, flink_key, flink_secret, env_name, cluster_name):
     """
     Submit a Flink SQL statement and wait until it reaches RUNNING or COMPLETED.

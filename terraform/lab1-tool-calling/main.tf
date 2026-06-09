@@ -337,3 +337,29 @@ resource "confluent_flink_statement" "customers_table" {
     confluent_flink_statement.remote_mcp_model_azure
   ]
 }
+
+# Set 1-hour retention on all Lab1 Kafka topics after they are created by Flink
+resource "null_resource" "set_lab1_topic_retention" {
+  triggers = {
+    orders    = confluent_flink_statement.orders_table.id
+    products  = confluent_flink_statement.products_table.id
+    customers = confluent_flink_statement.customers_table.id
+  }
+
+  provisioner "local-exec" {
+    command = "cd '${path.module}/../..' && uv run python scripts/set_topic_retention.py"
+    environment = {
+      TOPICS        = "orders products customers"
+      CLUSTER_ID    = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_id
+      REST_ENDPOINT = data.terraform_remote_state.core.outputs.confluent_kafka_cluster_rest_endpoint
+      KAFKA_KEY     = data.terraform_remote_state.core.outputs.app_manager_kafka_api_key
+      KAFKA_SECRET  = data.terraform_remote_state.core.outputs.app_manager_kafka_api_secret
+    }
+  }
+
+  depends_on = [
+    confluent_flink_statement.orders_table,
+    confluent_flink_statement.products_table,
+    confluent_flink_statement.customers_table,
+  ]
+}
