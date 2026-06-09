@@ -153,7 +153,7 @@ def _collect_workshop_inputs(
 
     set_key(str(creds_file), "WORKSHOP_CLUSTER_ID", cluster_id)
     cluster_use = subprocess.run(
-        ["confluent", "kafka", "cluster", "use", cluster_id, "--environment", env_id],
+        ["confluent", "kafka", "cluster", "use", cluster_id],
         capture_output=True, text=True,
     )
     if cluster_use.returncode != 0:
