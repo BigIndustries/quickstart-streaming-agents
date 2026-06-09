@@ -26,6 +26,7 @@ from scripts.common.confluent_rest import (
     create_role_binding,
     get_or_create_service_account,
 )
+from scripts.common.credentials import generate_confluent_api_keys
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
 from scripts.common.ui import prompt_with_default
@@ -187,7 +188,17 @@ def _collect_workshop_inputs(
     print()
 
     # ── 3. Confluent Cloud API credentials ───────────────────────────────────
-    print("--- Confluent Cloud API key ---")
+    generate = (
+        input("\nGenerate new Confluent Cloud API keys? (y/n) [default: n]: ").strip().lower() or "n"
+    )
+    if generate == "y":
+        gen_key, gen_secret = generate_confluent_api_keys()
+        if gen_key and gen_secret:
+            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", gen_key)
+            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", gen_secret)
+            creds["TF_VAR_confluent_cloud_api_key"] = gen_key
+            creds["TF_VAR_confluent_cloud_api_secret"] = gen_secret
+
     api_key = prompt_with_default(
         "Confluent Cloud API Key",
         creds.get("TF_VAR_confluent_cloud_api_key", ""),
