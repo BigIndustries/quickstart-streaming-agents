@@ -119,6 +119,40 @@ def _flush_pending_writes(creds_file) -> None:
         sys.exit(1)
 
 
+def _grant_org_admin_to_all_users() -> None:
+    """Grant OrganizationAdmin to every current org member so participants can run uv run user."""
+    import json as _json
+    try:
+        r = subprocess.run(
+            ["confluent", "iam", "user", "list", "--output", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        users = _json.loads(r.stdout)
+    except Exception as exc:
+        print(f"  Warning: could not list org users: {exc}")
+        return
+
+    granted = already = failed = 0
+    for user in users:
+        user_id = user.get("id") or user.get("resource_id") or ""
+        if not user_id:
+            continue
+        result = subprocess.run(
+            ["confluent", "iam", "rbac", "role-binding", "create",
+             "--principal", f"User:{user_id}", "--role", "OrganizationAdmin"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            granted += 1
+        elif "already exists" in (result.stderr + result.stdout).lower():
+            already += 1
+        else:
+            failed += 1
+
+    print(f"  ✓ OrganizationAdmin granted: {granted} new, {already} already set" +
+          (f", {failed} failed" if failed else ""))
+
+
 def _print_write_error(exc) -> None:
     print(
         f"\n✗ Could not write credentials.env: {exc}\n\n"
@@ -288,6 +322,14 @@ def main():
         # 0b. Final assurance — works whether just authenticated, already logged in, or has saved creds
         ensure_confluent_login(env_creds)
         print("✓ Confluent CLI logged in")
+
+        # Step 0c: Grant OrganizationAdmin to all org members (for workshop participants)
+        grant = (
+            input("\nGrant OrganizationAdmin to all org members so participants can run `uv run user`? (y/n) [default: y]: ")
+            .strip().lower() or "y"
+        )
+        if grant == "y":
+            _grant_org_admin_to_all_users()
 
         # Step 1: Select cloud provider
         cloud = prompt_choice("Select cloud provider:", ["aws", "azure"], default=1)
