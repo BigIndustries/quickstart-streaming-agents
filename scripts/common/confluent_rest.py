@@ -111,9 +111,16 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   prefix,          "PREFIXED", "DESCRIBE"),
         ("GROUP",   prefix,          "PREFIXED", "READ"),
         ("CLUSTER", "kafka-cluster", "LITERAL",  "DESCRIBE"),
-        # Shared documents topic — needed for the embedding ingestion pipeline
+        # Shared Lab2 source topic
         ("TOPIC",   "documents",     "LITERAL",  "READ"),
         ("TOPIC",   "documents",     "LITERAL",  "DESCRIBE"),
+        # Shared Lab1 source topics — participants can query these with their own Flink key
+        ("TOPIC",   "orders",        "LITERAL",  "READ"),
+        ("TOPIC",   "orders",        "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "products",      "LITERAL",  "READ"),
+        ("TOPIC",   "products",      "LITERAL",  "DESCRIBE"),
+        ("TOPIC",   "customers",     "LITERAL",  "READ"),
+        ("TOPIC",   "customers",     "LITERAL",  "DESCRIBE"),
     ]
     for resource_type, resource_name, pattern_type, operation in entries:
         kafka_rest(

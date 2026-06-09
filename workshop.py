@@ -10,7 +10,6 @@ Usage:
     uv run workshop
 """
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -73,32 +72,6 @@ def _stmt(username: str, suffix: str) -> str:
     return f"{safe}-{suffix}"
 
 
-def _setup_lab1(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name):
-    """Lab 1 – MCP Tool Calling: orders, products, customers tables."""
-    print("  Creating Lab 1 tables...")
-    stmts = [
-        (_stmt(u, "orders-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_orders` ("
-         "`order_id` STRING NOT NULL, `customer_id` STRING NOT NULL,"
-         "`product_id` STRING NOT NULL, `price` DOUBLE NOT NULL,"
-         "`order_ts` TIMESTAMP(3) WITH LOCAL TIME ZONE NOT NULL);"),
-
-        (_stmt(u, "products-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_products` ("
-         "`product_id` STRING NOT NULL, `product_name` STRING NOT NULL,"
-         "`price` DOUBLE NOT NULL, `department` STRING NOT NULL,"
-         "`updated_at` TIMESTAMP(3) WITH LOCAL TIME ZONE NOT NULL);"),
-
-        (_stmt(u, "customers-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_customers` ("
-         "`customer_id` STRING NOT NULL, `customer_email` STRING NOT NULL,"
-         "`customer_name` STRING NOT NULL, `state` STRING NOT NULL,"
-         "`updated_at` TIMESTAMP(3) WITH LOCAL TIME ZONE NOT NULL);"),
-    ]
-    for name, sql in stmts:
-        run_flink_statement(name, sql, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name)
-
-
 def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluster_name):
     """Lab 2 – Vector Search & RAG: queries, queries_embed, documents_vectordb, search pipelines."""
     print("  Creating Lab 2 tables and pipelines...")
@@ -113,6 +86,8 @@ def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_queries_embed` (query STRING, embedding ARRAY<FLOAT>);"),
 
         # MongoDB vector-store connector (references shared mongodb-connection)
+        # The organizer's pipeline (documents → documents_embed → MongoDB) populates
+        # this collection; participants only need a per-user lookup table pointing at it.
         (_stmt(u, "documents-vectordb-table"),
          f"CREATE TABLE IF NOT EXISTS `{u}_documents_vectordb_lab2` ("
          "document_id STRING, chunk STRING, embedding ARRAY<FLOAT>"
@@ -124,16 +99,6 @@ def _setup_lab2(u, org_id, env_id, pool_id, sa_id, fep, fk, fs, env_name, cluste
          "'mongodb.index' = 'vector_index',"
          "'mongodb.embedding_column' = 'embedding',"
          "'mongodb.numCandidates' = '500');"),
-
-        # Per-user Kafka sink for embedded docs (Kafka → MongoDB via Kafka Connect sink)
-        (_stmt(u, "documents-embed-table"),
-         f"CREATE TABLE IF NOT EXISTS `{env_name}`.`{cluster_name}`.`{u}_documents_embed` (document_id STRING, chunk STRING, embedding ARRAY<FLOAT>);"),
-
-        # Streaming: embed documents from shared topic into per-user embedded topic
-        (_stmt(u, "documents-embed-insert"),
-         f"INSERT INTO `{u}_documents_embed` "
-         "SELECT document_id, document_text AS chunk, embedding "
-         "FROM documents, LATERAL TABLE(ML_PREDICT('llm_embedding_model', document_text));"),
 
         # Streaming: embed queries (INSERT INTO runs continuously)
         (_stmt(u, "queries-embed-insert"),
@@ -323,7 +288,10 @@ def main():
     print("\nCreating per-user Flink SQL tables...")
     for lab in labs:
         if lab == "lab1":
-            _setup_lab1(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
+            # Lab 1 uses shared source topics (orders, products, customers) that the
+            # organizer populates via datagen. Participants have READ ACLs on those topics.
+            # MCP is configured with organizer credentials — no per-user tables needed.
+            print("  Lab 1: shared source topics available (orders, products, customers)")
         elif lab == "lab2":
             _setup_lab2(username, org_id, env_id, pool_id, sa_id, flink_ep, admin_fk, admin_fs, env_name, cluster_name)
 
