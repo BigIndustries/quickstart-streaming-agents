@@ -10,6 +10,7 @@ Usage:
     uv run participate
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -101,6 +102,14 @@ def _save_user_credentials(root: Path, username: str, email: str, kafka_key: str
 # ---------------------------------------------------------------------------
 
 def main():
+    parser = argparse.ArgumentParser(description="Workshop participant setup")
+    parser.add_argument(
+        "--new",
+        action="store_true",
+        help="Force a fresh Confluent login even if already authenticated.",
+    )
+    args = parser.parse_args()
+
     print("=== Workshop Setup (single-account mode) ===\n")
 
     root = get_project_root()
@@ -108,7 +117,7 @@ def main():
     creds = dotenv_values(str(creds_file)) if creds_file.exists() else {}
 
     # --- 1. Confluent login ---
-    confluent_login_interactive()
+    confluent_login_interactive(force=args.new)
     print()
 
     # --- 2. Participant email → username ---

@@ -73,13 +73,15 @@ def _attempt_login_quiet(email: str, password: str) -> bool:
     return check_confluent_login()
 
 
-def confluent_login_interactive() -> None:
+def confluent_login_interactive(force: bool = False) -> None:
     """Ensure Confluent CLI login, launching a browser if the session has expired.
 
-    Skips the browser prompt if already authenticated. Exits with an error if
-    login fails (e.g. CLI not installed, network issue).
+    Args:
+        force: When True, always open the browser login even if already logged in.
+
+    Exits with an error if login fails (e.g. CLI not installed, network issue).
     """
-    if check_confluent_login():
+    if not force and check_confluent_login():
         print("✓ Already logged into Confluent Cloud")
         return
 
