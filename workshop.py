@@ -244,6 +244,16 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         sys.exit(1)
     print()
 
+    # ── 7. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
+    print("Big Industries MCP server details (ask your organiser, or press Enter to skip):")
+    bigind_mcp_endpoint = input("  Big Industries MCP URL   : ").strip()
+    bigind_mcp_token    = input("  Big Industries MCP Token : ").strip()
+    if bigind_mcp_endpoint:
+        set_key(str(creds_file), "TF_VAR_bigind_mcp_endpoint", bigind_mcp_endpoint)
+    if bigind_mcp_token:
+        set_key(str(creds_file), "TF_VAR_bigind_mcp_token", bigind_mcp_token)
+    print()
+
     # ── Build core dict ───────────────────────────────────────────────────────
     core = {
         "confluent_environment_id":                   env_id,

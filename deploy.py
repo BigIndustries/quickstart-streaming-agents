@@ -201,6 +201,7 @@ def main():
             required["TF_VAR_azure_openai_api_key"] = "Azure OpenAI API Key"
 
         if mcp_backend == "bigind":
+            required["TF_VAR_bigind_mcp_endpoint"] = "Big Industries MCP Server URL"
             required["TF_VAR_bigind_mcp_token"] = "Big Industries MCP Server Token"
         elif mcp_backend == "lambda":
             required["TF_VAR_mcp_token"] = "Remote MCP Lambda Token (TF_VAR_mcp_token)"
@@ -553,10 +554,15 @@ def main():
                 )
                 _save_env_safe(creds_file, "TF_VAR_zapier_token", zapier_token)
             elif mcp_backend == "bigind":
+                bigind_mcp_endpoint = prompt_with_default(
+                    "Big Industries MCP Server URL",
+                    creds.get("TF_VAR_bigind_mcp_endpoint", ""),
+                )
                 bigind_mcp_token = prompt_with_default(
                     "Big Industries MCP Server Token",
                     creds.get("TF_VAR_bigind_mcp_token", ""),
                 )
+                _save_env_safe(creds_file, "TF_VAR_bigind_mcp_endpoint", bigind_mcp_endpoint)
                 _save_env_safe(creds_file, "TF_VAR_bigind_mcp_token", bigind_mcp_token)
             else:
                 mcp_token = prompt_with_default(

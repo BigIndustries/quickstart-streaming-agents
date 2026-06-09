@@ -16,6 +16,13 @@ variable "mcp_token" {
   sensitive   = true
 }
 
+variable "bigind_mcp_endpoint" {
+  description = "URL of the Big Industries managed MCP server"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "bigind_mcp_token" {
   description = "Bearer token for the Big Industries managed MCP server"
   type        = string

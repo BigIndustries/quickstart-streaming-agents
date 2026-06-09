@@ -11,10 +11,10 @@ locals {
   cloud_provider = data.terraform_remote_state.core.outputs.cloud_provider
   cloud_region   = data.terraform_remote_state.core.outputs.cloud_region
 
-  # Remote MCP backend selection. Endpoints are hard-coded so users can't point
-  # Flink at an arbitrary MCP server via tfvars.
+  # Remote MCP backend selection. lambda and zapier endpoints are well-known public
+  # URLs and safe to commit. The bigind endpoint is a private URL supplied at deploy time.
   mcp_lambda_endpoint    = "https://z04yuqut2a.execute-api.us-east-1.amazonaws.com/mcp"
-  mcp_bigind_endpoint    = "https://lfb90lpu6c.execute-api.us-east-1.amazonaws.com/mcp"
+  mcp_bigind_endpoint    = var.bigind_mcp_endpoint
   mcp_zapier_endpoint    = "https://mcp.zapier.com/api/v1/connect"
   effective_mcp_endpoint = var.mcp_backend == "zapier" ? local.mcp_zapier_endpoint : (var.mcp_backend == "bigind" ? local.mcp_bigind_endpoint : local.mcp_lambda_endpoint)
   effective_mcp_token    = var.mcp_backend == "zapier" ? var.zapier_token : (var.mcp_backend == "bigind" ? var.bigind_mcp_token : var.mcp_token)
