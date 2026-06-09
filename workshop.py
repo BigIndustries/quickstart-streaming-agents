@@ -329,19 +329,11 @@ def main():
     print()
 
     # --- 2. Confluent login ---
-    confluent_login_interactive(force=args.login)
+    # Pass org_id so the browser login lands directly in the workshop organisation.
+    confluent_login_interactive(force=args.login, org_id=org_id)
     print()
 
-    # --- 3. Switch to the workshop org/env immediately after login ---
-    org_result = subprocess.run(
-        ["confluent", "organization", "use", org_id],
-        capture_output=True, text=True,
-    )
-    if org_result.returncode != 0:
-        msg = (org_result.stderr or org_result.stdout).strip()
-        print(f"  Warning: could not switch to organisation {org_id}: {msg}")
-        print("  Continuing — will try to switch environment directly.")
-
+    # --- 3. Switch to the workshop env ---
     env_result = subprocess.run(
         ["confluent", "environment", "use", env_id],
         capture_output=True, text=True,
@@ -352,7 +344,8 @@ def main():
         print(f"  {msg}")
         print(
             "\nMake sure the Organisation ID and Environment ID above are correct "
-            "and that your Confluent account has access to that environment."
+            "and that your Confluent account has access to that environment.\n"
+            "Re-run with --login to open a fresh browser session."
         )
         sys.exit(1)
 

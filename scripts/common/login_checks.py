@@ -73,11 +73,13 @@ def _attempt_login_quiet(email: str, password: str) -> bool:
     return check_confluent_login()
 
 
-def confluent_login_interactive(force: bool = False) -> None:
+def confluent_login_interactive(force: bool = False, org_id: str = "") -> None:
     """Ensure Confluent CLI login, launching a browser if the session has expired.
 
     Args:
-        force: When True, always open the browser login even if already logged in.
+        force:  When True, always open the browser login even if already logged in.
+        org_id: When provided, pass --organization <org_id> to the login command so
+                the browser session lands directly in the correct organisation.
 
     Exits with an error if login fails (e.g. CLI not installed, network issue).
     """
@@ -85,8 +87,11 @@ def confluent_login_interactive(force: bool = False) -> None:
         print("✓ Already logged into Confluent Cloud")
         return
 
+    cmd = ["confluent", "login", "--save"]
+    if org_id:
+        cmd += ["--organization", org_id]
     print("Opening Confluent Cloud login in your browser...")
-    result = subprocess.run(["confluent", "login", "--save"])
+    result = subprocess.run(cmd)
 
     if result.returncode != 0 or not check_confluent_login():
         print("\nError: Confluent login failed.")
