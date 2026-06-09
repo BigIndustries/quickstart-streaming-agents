@@ -138,10 +138,22 @@ def _grant_workshop_permissions(env_id: str, cluster_id: str) -> None:
         print(f"  Warning: could not list org users: {exc}")
         return
 
+    print(f"  Found {len(users)} org user(s).")
+    if users:
+        # Show the first user's keys so we can verify the ID field name
+        print(f"  User record sample keys: {list(users[0].keys())}")
+
     granted = already = failed = 0
     for user in users:
-        user_id = user.get("id") or user.get("resource_id") or ""
+        user_id = (
+            user.get("id")
+            or user.get("Id")
+            or user.get("resource_id")
+            or user.get("ResourceId")
+            or ""
+        )
         if not user_id:
+            print(f"  Warning: could not extract ID from user record: {user}")
             continue
         r_env = subprocess.run(
             ["confluent", "iam", "rbac", "role-binding", "create",
@@ -162,6 +174,11 @@ def _grant_workshop_permissions(env_id: str, cluster_id: str) -> None:
             already += 1
         else:
             failed += 1
+            print(f"  Failed for {user_id}:")
+            if r_env.returncode != 0:
+                print(f"    EnvironmentAdmin: {(r_env.stderr or r_env.stdout).strip()}")
+            if r_cluster.returncode != 0:
+                print(f"    CloudClusterAdmin: {(r_cluster.stderr or r_cluster.stdout).strip()}")
 
     print(f"  ✓ Workshop permissions granted: {granted} users updated, {already} already set" +
           (f", {failed} failed" if failed else ""))
