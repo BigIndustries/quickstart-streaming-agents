@@ -717,6 +717,9 @@ def main():
             if value:
                 os.environ[key] = value
 
+    # Clear workshop profile — organizer mode, no per-user prefix
+    _save_env_safe(creds_file, "WORKSHOP_USERNAME", "")
+
     print("\n=== Starting Deployment ===")
     for env in envs_to_deploy:
         env_path = root / "terraform" / env

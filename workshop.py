@@ -14,7 +14,7 @@ import re
 import sys
 from pathlib import Path
 
-from dotenv import dotenv_values
+from dotenv import dotenv_values, set_key
 
 from scripts.common.confluent_rest import (
     create_api_key,
@@ -319,6 +319,10 @@ def main():
     # --- 10. Configure MCP using the organizer's shared credentials ---
     print("\nConfiguring MCP server...")
     setup_mcp_for_outputs(core, root)
+
+    # --- 11. Set workshop profile so uv run publish-queries targets the right topic ---
+    set_key(str(creds_file), "WORKSHOP_USERNAME", username)
+    print(f"  ✓ WORKSHOP_USERNAME={username} written to credentials.env")
 
     print(f"\n{'=' * 50}")
     print(f"✓ Workshop setup complete for {username}")
