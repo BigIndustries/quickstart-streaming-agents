@@ -32,7 +32,6 @@ from scripts.common.validate import (
     validate_aws_bedrock_credentials,
     validate_azure_openai_credentials,
 )
-from scripts.mcp_setup import main as setup_mcp
 
 # Valid cloud regions (MongoDB M0 free tier compatible)
 # NOTE: These are kept for reference and testing mode, but interactive mode
@@ -733,20 +732,17 @@ def main():
 
     print("\n✓ All deployments completed successfully!")
 
-    # Display the environment name and generate MCP config
+    # Display the environment name from core Terraform state
     core_state_path = root / "terraform" / "core" / "terraform.tfstate"
     if core_state_path.exists():
-        if args.automated:
-            setup_mcp()
-        else:
-            try:
-                core_outputs = run_terraform_output(core_state_path)
-                if "confluent_environment_display_name" in core_outputs:
-                    print(
-                        f"\nEnvironment name: {core_outputs['confluent_environment_display_name']}"
-                    )
-            except Exception as e:
-                print(f"\n⚠ Could not read Terraform outputs: {e}")
+        try:
+            core_outputs = run_terraform_output(core_state_path)
+            if "confluent_environment_display_name" in core_outputs:
+                print(
+                    f"\nEnvironment name: {core_outputs['confluent_environment_display_name']}"
+                )
+        except Exception as e:
+            print(f"\n⚠ Could not read Terraform outputs: {e}")
 
 
 if __name__ == "__main__":

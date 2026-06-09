@@ -29,7 +29,6 @@ from scripts.common.confluent_rest import (
 from scripts.common.login_checks import confluent_login_interactive
 from scripts.common.terraform import get_project_root
 from scripts.common.ui import prompt_choice
-from scripts.mcp_setup import setup_mcp_for_outputs
 
 
 # ---------------------------------------------------------------------------
@@ -101,11 +100,10 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
     """
     Interactively collect all organizer-provisioned details needed to participate.
 
-    Uses the Confluent CLI to auto-discover environment, cluster, SR, and Flink
-    pool details where possible. Only admin credentials must be typed manually.
+    Uses the Confluent CLI to auto-discover environment, cluster, and SR details
+    where possible. Only admin credentials must be typed manually.
 
     Returns (core_dict, confluent_cloud_api_key, confluent_cloud_api_secret).
-    The core_dict is compatible with the keys expected by setup_mcp_for_outputs.
     """
     print("\n=== Workshop Configuration ===")
     print("The values below come from your workshop organiser.\n")
@@ -193,30 +191,9 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         sr_endpoint = _field(sr, "endpoint_url", "endpoint")
         print(f"  Schema Registry: {sr_id}")
     except Exception:
-        pass  # SR info is optional; MCP SR features won't work without it
+        pass  # SR details optional; role binding creation may fail without sr_id
 
-    # ── 4. Flink compute pool ────────────────────────────────────────────────
-    flink_pool_id = ""
-    try:
-        pools = _confluent_json(["flink", "compute-pool", "list", "--environment", env_id])
-        if pools:
-            if len(pools) == 1:
-                flink_pool_id = pools[0]["id"]
-                print(f"  Flink pool : {_field(pools[0], 'name', default=flink_pool_id)} ({flink_pool_id})")
-            else:
-                print("\nSelect the workshop Flink compute pool:")
-                pool = _pick_from_list(pools, lambda p: f"{_field(p, 'name')} ({p['id']})")
-                flink_pool_id = pool["id"]
-    except Exception:
-        pass  # Flink pool optional; MCP Flink features won't work without it
-
-    # Derive Flink REST endpoint from cloud + region
-    flink_rest_ep = (
-        f"https://flink.{region}.{cloud}.confluent.cloud"
-        if cloud and region else ""
-    )
-
-    # ── 5. Organisation ID ───────────────────────────────────────────────────
+    # ── 4. Organisation ID ───────────────────────────────────────────────────
     org_id = ""
     # Try: confluent organization list
     for cmd in [["organization", "list"], ["iam", "organization", "list"]]:
@@ -257,21 +234,14 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         print(f"  Confluent Cloud API key: {api_key[:8]}...  (cached)")
     print()
 
-    # ── 7. Admin Kafka credentials (ACL creation + MCP Kafka access) ─────────
-    print("Admin Kafka API key (ask your organiser — used for ACL setup and MCP):")
+    # ── 7. Admin Kafka credentials (for ACL creation) ────────────────────────
+    print("Admin Kafka API key (ask your organiser — used for ACL setup):")
     admin_kk = input("  Kafka API Key   : ").strip()
     admin_ks = input("  Kafka API Secret: ").strip()
     if not admin_kk or not admin_ks:
         print("Error: Admin Kafka credentials are required.")
         sys.exit(1)
     print()
-
-    # ── 8. Optional admin Flink + SR keys (full MCP functionality) ───────────
-    print("Admin Flink + Schema Registry keys (ask organiser, or press Enter to skip):")
-    admin_fk  = input("  Flink API Key     : ").strip()
-    admin_fs  = input("  Flink API Secret  : ").strip()
-    admin_srk = input("  SR API Key        : ").strip()
-    admin_srs = input("  SR API Secret     : ").strip()
 
     # ── Build core dict ───────────────────────────────────────────────────────
     core = {
@@ -288,12 +258,6 @@ def _collect_workshop_inputs(creds: dict, creds_file: Path) -> tuple[dict, str, 
         "cloud_region":                               region,
         "app_manager_kafka_api_key":                  admin_kk,
         "app_manager_kafka_api_secret":               admin_ks,
-        "app_manager_flink_api_key":                  admin_fk,
-        "app_manager_flink_api_secret":               admin_fs,
-        "confluent_flink_rest_endpoint":              flink_rest_ep,
-        "confluent_flink_compute_pool_id":            flink_pool_id,
-        "app_manager_schema_registry_api_key":        admin_srk,
-        "app_manager_schema_registry_api_secret":     admin_srs,
         "confluent_cloud_api_key":                    api_key,
         "confluent_cloud_api_secret":                 api_secret,
     }
@@ -446,11 +410,7 @@ def main():
     # --- 7. Save user credentials ---
     _save_user_credentials(root, username, kafka_key, kafka_secret, sr_key, sr_secret, core)
 
-    # --- 8. Configure MCP using the organizer's shared credentials ---
-    print("\nConfiguring MCP server...")
-    setup_mcp_for_outputs(core, root)
-
-    # --- 9. Set workshop profile so uv run publish-queries targets the right topic ---
+    # --- 8. Set workshop profile so uv run publish-queries targets the right topic ---
     set_key(str(creds_file), "WORKSHOP_USERNAME", username)
     print(f"  ✓ WORKSHOP_USERNAME={username} written to credentials.env")
 
@@ -458,7 +418,6 @@ def main():
     print(f"✓ Workshop setup complete for {username}")
     print(f"  Kafka API key    : {kafka_key}")
     print(f"  Credentials file : {username}-credentials.env")
-    print("  Restart Claude Code to activate the MCP server.")
 
 
 if __name__ == "__main__":
