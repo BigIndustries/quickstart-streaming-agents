@@ -186,37 +186,53 @@ def _collect_workshop_inputs(
 
     print()
 
-    # ── 3. Confluent Cloud API credentials (SA + role-binding creation) ──────
-    print("--- Confluent Cloud API key (ask your organiser) ---")
-    api_key = prompt_with_default(
-        "Confluent Cloud API Key",
-        creds.get("TF_VAR_confluent_cloud_api_key", ""),
-    )
-    api_secret = prompt_with_default(
-        "Confluent Cloud API Secret",
-        creds.get("TF_VAR_confluent_cloud_api_secret", ""),
-    )
-    if not api_key or not api_secret:
-        print("Error: Confluent Cloud API credentials are required.")
-        sys.exit(1)
-    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
-    set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
+    # ── 3. Confluent Cloud API key (auto-created for current user) ───────────
+    api_key = creds.get("TF_VAR_confluent_cloud_api_key", "")
+    api_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
+    if api_key and api_secret:
+        print(f"  Cloud API Key  : {api_key} (cached)")
+    else:
+        print("  Creating Confluent Cloud API key...")
+        try:
+            r = subprocess.run(
+                ["confluent", "api-key", "create", "--resource", "cloud", "--output", "json"],
+                capture_output=True, text=True, check=True,
+            )
+            data = json.loads(r.stdout)
+            api_key = data.get("key", "")
+            api_secret = data.get("secret", "")
+            if not api_key or not api_secret:
+                raise ValueError(f"unexpected output: {r.stdout.strip()}")
+            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_key", api_key)
+            set_key(str(creds_file), "TF_VAR_confluent_cloud_api_secret", api_secret)
+            print(f"  ✓ Cloud API Key: {api_key}")
+        except Exception as exc:
+            print(f"\nError: could not create Confluent Cloud API key: {exc}")
+            sys.exit(1)
 
-    # ── 4. Admin Kafka credentials (for ACL creation) ────────────────────────
-    print("\n--- Admin Kafka API key (ask your organiser) ---")
-    admin_kk = prompt_with_default(
-        "Admin Kafka API Key",
-        creds.get("WORKSHOP_ADMIN_KAFKA_KEY", ""),
-    )
-    admin_ks = prompt_with_default(
-        "Admin Kafka API Secret",
-        creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", ""),
-    )
-    if not admin_kk or not admin_ks:
-        print("Error: Admin Kafka credentials are required.")
-        sys.exit(1)
-    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_KEY", admin_kk)
-    set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_SECRET", admin_ks)
+    # ── 4. Kafka API key (auto-created for current user) ─────────────────────
+    admin_kk = creds.get("WORKSHOP_ADMIN_KAFKA_KEY", "")
+    admin_ks = creds.get("WORKSHOP_ADMIN_KAFKA_SECRET", "")
+    if admin_kk and admin_ks:
+        print(f"  Kafka API Key  : {admin_kk} (cached)")
+    else:
+        print("  Creating Kafka API key...")
+        try:
+            r = subprocess.run(
+                ["confluent", "api-key", "create", "--resource", cluster_id, "--output", "json"],
+                capture_output=True, text=True, check=True,
+            )
+            data = json.loads(r.stdout)
+            admin_kk = data.get("key", "")
+            admin_ks = data.get("secret", "")
+            if not admin_kk or not admin_ks:
+                raise ValueError(f"unexpected output: {r.stdout.strip()}")
+            set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_KEY", admin_kk)
+            set_key(str(creds_file), "WORKSHOP_ADMIN_KAFKA_SECRET", admin_ks)
+            print(f"  ✓ Kafka API Key: {admin_kk}")
+        except Exception as exc:
+            print(f"\nError: could not create Kafka API key: {exc}")
+            sys.exit(1)
 
     # ── 5. Big Industries MCP server (optional, for Lab 1 tool-calling) ──────
     print("\n--- Big Industries MCP server (ask your organiser, press Enter to skip) ---")
