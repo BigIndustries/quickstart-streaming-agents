@@ -75,7 +75,22 @@ cd quickstart-streaming-agents
 
 <br>
 
-**Deploy everything in one step:**
+### API keys & access
+
+- **LLM Access:** AWS Bedrock API keys **OR** Azure OpenAI endpoint + API key
+  - No AWS/Azure account required - just the LLM API credentials!
+  - **Easy key creation:** Run `uv run api-keys create` to quickly generate ready-to-use credentials
+
+> ⚠️ **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
+
+- **Remote MCP server backend:** Lab 1 calls a remote MCP server for HTTP fetch and email send. `uv run setup` will prompt you to choose:
+  - **Confluent-hosted remote MCP server**
+  - **Big Industries' remote MCP server (Recommended)**
+  - **Zapier**
+
+  To switch backends after deploying, run `uv run destroy` first, then re-deploy.
+
+**Organizer** (run once before the workshop):
 
 ```bash
 uv run setup
@@ -96,11 +111,6 @@ See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for t
 
 The workshop uses a single shared Confluent Cloud account. The organizer provisions the shared environment once; each participant then creates their own namespaced resources.
 
-**Organizer** (run once before the workshop):
-
-```bash
-uv run setup
-```
 
 **Each participant** (run individually during the workshop):
 
