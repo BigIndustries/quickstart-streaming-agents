@@ -57,6 +57,9 @@ brew install uv git python && brew tap hashicorp/tap && brew install hashicorp/t
 ```powershell
 winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform ConfluentInc.Confluent-CLI Python.Python.3.12
 ```
+
+> ⚠️ Windows users must install this command in powershell and should restart powershell terminal for these packages to take effect. Please use this powershell window to run subsequent cli commands.
+
 </details>
 
 ## 🚀 Quick Start

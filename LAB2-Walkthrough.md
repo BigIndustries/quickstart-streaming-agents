@@ -70,6 +70,44 @@ SELECT * FROM search_results LIMIT 5;
 SELECT query, response FROM search_results_response LIMIT 5;
 ```
 
+<details>
+<summary> Publish new documents to Vector DB for RAG feeding</summary>
+## Optional: Publish Your Own Documents
+
+You can extend the knowledge base with any web page. The `web2md` tool fetches a URL and saves it as Markdown; `publish-docs` then streams those files into the shared `documents` topic where they flow through embedding and vector indexing automatically.
+
+**Step 1 — Fetch a web page as Markdown**
+
+```bash
+uv run web2md <url> assets/md/
+```
+
+Example — add the Confluent Flink SQL overview page:
+
+```bash
+uv run web2md https://docs.confluent.io/cloud/current/flink/overview.html assets/md/
+```
+
+The file is saved as `assets/md/<page-slug>.md`.
+
+**Step 2 — Publish it to the knowledge base**
+
+```bash
+uv run publish-docs --doc-dir assets/md/
+```
+
+This publishes all Markdown files in `assets/md/` (including the one you just added) to the `documents` Kafka topic. Within a minute, the document will be embedded, indexed in MongoDB, and available for vector search for the RAG system.
+
+**Step 3 — Query the new content**
+
+```bash
+uv run publish-queries "What is <topic from your new document>?"
+```
+
+> **Tip:** You can also publish from a different directory using `--docs-dir <path>`.
+
+</details>
+
 ## Troubleshooting
 
 <details>
