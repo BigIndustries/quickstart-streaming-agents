@@ -258,7 +258,11 @@ def resume_stopped_flink_statements(org_id, env_id, flink_endpoint, flink_key, f
         deadline = time.time() + _FLINK_POLL_TIMEOUT
         while time.time() < deadline:
             time.sleep(_FLINK_POLL_INTERVAL)
-            status = flink_rest("GET", f"{path}/{name}", flink_endpoint, flink_key, flink_secret)
+            try:
+                status = flink_rest("GET", f"{path}/{name}", flink_endpoint, flink_key, flink_secret)
+            except SystemExit:
+                print(f"    ⚠ {name}: lost connection while polling")
+                break
             phase = status.get("status", {}).get("phase", "PENDING")
             if phase in ("RUNNING", "COMPLETED"):
                 print(f"    ✓ {name} ({phase.lower()})")

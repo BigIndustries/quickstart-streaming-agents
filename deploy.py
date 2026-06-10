@@ -135,15 +135,16 @@ def _print_participant_handout(creds: dict, env_id: str, cluster_id: str) -> Non
     cloud_key    = creds.get("TF_VAR_confluent_cloud_api_key", "")
     cloud_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
 
+    na = "(not available — check credentials.env or re-run setup)"
     print("\n" + "=" * 60)
     print("SHARE WITH WORKSHOP PARTICIPANTS")
     print("=" * 60)
-    print(f"  Confluent Organisation ID : {org_id or '(run: confluent organization describe)'}")
-    print(f"  Confluent Environment ID  : {env_id}")
-    print(f"  Workshop Cloud API Key    : {cloud_key or '(see TF_VAR_confluent_cloud_api_key in credentials.env)'}")
-    print(f"  Workshop Cloud API Secret : {cloud_secret or '(see TF_VAR_confluent_cloud_api_secret in credentials.env)'}")
+    print("Participants need these values when running:  uv run user")
     print()
-    print("Participants run:  uv run user")
+    print(f"  Confluent Organisation ID : {org_id or na}")
+    print(f"  Confluent Environment ID  : {env_id or na}")
+    print(f"  Workshop Cloud API Key    : {cloud_key or na}")
+    print(f"  Workshop Cloud API Secret : {cloud_secret or na}")
     print("=" * 60)
 
 
@@ -770,8 +771,9 @@ def main():
 
     print("\n✓ All deployments completed successfully!")
 
-    # Read core Terraform outputs (env name, env ID, cluster ID)
+    # Read core Terraform outputs then show participant handout and run health checks
     core_state_path = root / "terraform" / "core" / "terraform.tfstate"
+    env_id_out = cluster_id_out = ""
     if core_state_path.exists():
         try:
             core_outputs = run_terraform_output(core_state_path)
@@ -781,11 +783,20 @@ def main():
                 )
             env_id_out     = core_outputs.get("confluent_environment_id", "")
             cluster_id_out = core_outputs.get("confluent_kafka_cluster_id", "")
+        except Exception as e:
+            print(f"\n⚠ Could not read Terraform outputs: {e}")
 
-            # Resume any Flink statements that were stopped (e.g. cancelled mid-setup)
-            flink_endpoint = core_outputs.get("confluent_flink_rest_endpoint", "")
-            flink_key      = core_outputs.get("app_manager_flink_api_key", "")
-            flink_secret   = core_outputs.get("app_manager_flink_api_secret", "")
+    # Always show participant handout — printed before any optional health checks
+    # so it is never suppressed by a downstream error
+    _print_participant_handout(creds, env_id_out, cluster_id_out)
+
+    # Resume any Flink statements that were stopped (e.g. cancelled mid-setup)
+    if env_id_out and core_state_path.exists():
+        try:
+            _co = run_terraform_output(core_state_path)
+            flink_endpoint = _co.get("confluent_flink_rest_endpoint", "")
+            flink_key      = _co.get("app_manager_flink_api_key", "")
+            flink_secret   = _co.get("app_manager_flink_api_secret", "")
             try:
                 org_result = subprocess.run(
                     ["confluent", "organization", "describe", "--output", "json"],
@@ -794,14 +805,11 @@ def main():
                 org_id = _json.loads(org_result.stdout).get("id", "")
             except Exception:
                 org_id = ""
-            if flink_endpoint and flink_key and flink_secret and org_id and env_id_out:
+            if flink_endpoint and flink_key and flink_secret and org_id:
                 print("\n--- Checking Flink statement health ---")
                 resume_stopped_flink_statements(org_id, env_id_out, flink_endpoint, flink_key, flink_secret)
-
-            if env_id_out and cluster_id_out:
-                _print_participant_handout(creds, env_id_out, cluster_id_out)
         except Exception as e:
-            print(f"\n⚠ Could not read Terraform outputs: {e}")
+            print(f"\n⚠ Flink health check skipped: {e}")
 
 
 if __name__ == "__main__":
