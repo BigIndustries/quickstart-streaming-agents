@@ -11,6 +11,7 @@ import time
 import requests
 
 CONFLUENT_API = "https://api.confluent.cloud"
+TOPIC_RETENTION_MS = 86_400_000  # 1 day — change here to affect all topics project-wide
 _TIMEOUT = 30
 _FLINK_POLL_INTERVAL = 3
 _FLINK_POLL_TIMEOUT = 180
@@ -193,7 +194,7 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
     print(f"  ✓ Kafka ACLs created (prefix: {prefix})")
 
 
-def set_topic_retention(topic_name, cluster_id, rest_endpoint, kafka_key, kafka_secret, retention_ms=3600000):
+def set_topic_retention(topic_name, cluster_id, rest_endpoint, kafka_key, kafka_secret, retention_ms=TOPIC_RETENTION_MS):
     """Set retention.ms on a Kafka topic. Retries up to 3 times if the topic isn't visible yet."""
     path = f"/kafka/v3/clusters/{cluster_id}/topics/{topic_name}/configs:alter"
     body = {"data": [{"name": "retention.ms", "value": str(retention_ms)}]}
@@ -207,7 +208,7 @@ def set_topic_retention(topic_name, cluster_id, rest_endpoint, kafka_key, kafka_
             timeout=_TIMEOUT,
         )
         if resp.ok:
-            print(f"    ✓ {topic_name}: retention set to {retention_ms // 3600000}h")
+            print(f"    ✓ {topic_name}: retention set to {retention_ms // 3_600_000}h")
             return
         if resp.status_code == 404 and attempt < 2:
             time.sleep(5)

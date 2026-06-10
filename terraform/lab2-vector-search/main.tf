@@ -497,7 +497,7 @@ resource "confluent_connector" "documents_embed_sink" {
   ]
 }
 
-# Set 1-hour retention on all Lab2 Kafka topics after they are created by Flink
+# Set topic retention on all Lab2 Kafka topics after they are created by Flink (value defined in scripts/common/confluent_rest.py)
 resource "null_resource" "set_lab2_topic_retention" {
   triggers = {
     documents                = confluent_flink_statement.documents_table.id

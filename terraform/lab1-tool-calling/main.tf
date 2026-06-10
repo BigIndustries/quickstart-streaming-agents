@@ -338,7 +338,7 @@ resource "confluent_flink_statement" "customers_table" {
   ]
 }
 
-# Set 1-hour retention on all Lab1 Kafka topics after they are created by Flink
+# Set topic retention on all Lab1 Kafka topics after they are created by Flink (value defined in scripts/common/confluent_rest.py)
 resource "null_resource" "set_lab1_topic_retention" {
   triggers = {
     orders    = confluent_flink_statement.orders_table.id
