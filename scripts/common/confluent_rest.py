@@ -152,6 +152,9 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   "search_results",         "LITERAL",  "DESCRIBE"),
         ("TOPIC",   "search_results_response","LITERAL",  "READ"),
         ("TOPIC",   "search_results_response","LITERAL",  "DESCRIBE"),
+        # Quiz — participants write their answers
+        ("TOPIC",   "quiz_answers",           "LITERAL",  "WRITE"),
+        ("TOPIC",   "quiz_answers",           "LITERAL",  "DESCRIBE"),
     ]
 
     # Confluent Cloud RBAC permissions for a newly-created Kafka key can take a few seconds

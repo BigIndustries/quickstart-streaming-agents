@@ -140,6 +140,8 @@ setup_rtce = "scripts.setup_rtce:main"
 setup-rtce = "scripts.setup_rtce:main"
 #
 web2md = "scripts.web2md:main"
+#
+quiz = "scripts.quiz:main"
 
 
 [project.urls]

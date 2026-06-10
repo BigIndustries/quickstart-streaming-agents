@@ -269,6 +269,7 @@ def main():
             "core",
             "lab1-tool-calling",
             "lab2-vector-search",
+            "quiz",
         ]
 
         print(f"✓ Credentials loaded from credentials.env")
@@ -367,11 +368,11 @@ def main():
         env_choice = prompt_choice("What would you like to deploy?", deploy_options, default=3)
 
         if env_choice == "Lab 1: MCP Tool Calling":
-            envs_to_deploy = ["core", "lab1-tool-calling"]
+            envs_to_deploy = ["core", "lab1-tool-calling", "quiz"]
         elif env_choice == "Lab 2: Vector Search / RAG":
-            envs_to_deploy = ["core", "lab2-vector-search"]
+            envs_to_deploy = ["core", "lab2-vector-search", "quiz"]
         elif env_choice == "Both Labs (1 and 2)":
-            envs_to_deploy = ["core", "lab1-tool-calling", "lab2-vector-search"]
+            envs_to_deploy = ["core", "lab1-tool-calling", "lab2-vector-search", "quiz"]
 
         # Step 4.5: Remote MCP backend selection (Lab 1 only)
         mcp_backend = ""
