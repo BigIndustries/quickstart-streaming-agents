@@ -19,20 +19,38 @@ In this lab, we'll create a Retrieval-Augmented Generation (RAG) pipeline using 
 
 ## Deployment
 
-If you haven't already, clone the repo:
+Clone the repo if you haven't already:
 
 ```bash
 git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-**Self-service (single user):** Run the setup wizard and select **Lab 2**:
+---
+
+<details>
+<summary><strong>🔧 Self-service setup (single user)</strong></summary>
+
+<br>
+
+Run the setup wizard and select **Lab 2**:
 
 ```bash
 uv run setup
 ```
 
-**Workshop participant:** The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources:
+The setup wizard guides you through cloud provider selection, credentials, and deploys the full Lab 2 RAG pipeline.
+
+</details>
+
+---
+
+<details open>
+<summary><strong>🏫 Workshop participant setup</strong></summary>
+
+<br>
+
+The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources:
 
 ```bash
 uv run user
@@ -40,6 +58,10 @@ uv run user
 
 > [!NOTE]
 > In a workshop, the organizer's `uv run setup` has already deployed the full shared pipeline. `uv run user` grants your service account access to the shared topics. The organizer must also have published documents with `uv run publish-docs --lab2` before your queries will return results.
+
+</details>
+
+---
 
 `uv run setup` deploys the complete RAG pipeline. Resources are split between shared (organizer) and per-user (participant):
 

@@ -8,11 +8,12 @@ In this lab, we'll use Apache Flink for Confluent Cloud's MCP tool calling featu
 
 ### Local dependencies
 
-**Installation instructions:**
+**Mac:**
 
 ```bash
 brew install uv git python && brew tap hashicorp/tap && brew install hashicorp/tap/terraform && brew install --cask confluent-cli
 ```
+
 **Windows:**
 
 ```powershell
@@ -41,20 +42,38 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
 
 ## Deploy the Demo
 
-If you haven't already, clone the repo:
+Clone the repo if you haven't already:
 
 ```bash
 git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-**Self-service (single user):** Run the setup wizard and choose **Lab 1**:
+---
+
+<details>
+<summary><strong>🔧 Self-service setup (single user)</strong></summary>
+
+<br>
+
+Run the setup wizard and choose **Lab 1**:
 
 ```bash
 uv run setup
 ```
 
-**Workshop participant:** The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources and configure MCP:
+The setup wizard guides you through cloud provider selection, credentials, and deploys the full Lab 1 infrastructure.
+
+</details>
+
+---
+
+<details open>
+<summary><strong>🏫 Workshop participant setup</strong></summary>
+
+<br>
+
+The organizer must have already run `uv run setup` before you proceed. Run the following command to create your personal resources and configure MCP:
 
 ```bash
 uv run user
@@ -63,11 +82,15 @@ uv run user
 > [!NOTE]
 > In a workshop, the organizer has already deployed the shared infrastructure (`orders`, `products`, `customers` topics, LLM models, MCP connection). `uv run user` gives your service account read access to those shared topics and configures the MCP server with the organizer's shared credentials.
 
+</details>
+
+---
+
 # Getting Started
 
 ## 1. Test the LLM models before continuing
 
-Once you've deployed Lab1, open the [SQL Workspace](https://confluent.cloud/go/flink), select your Confluent Cloud environment, and run the following queries to make sure your models are working as expected:
+Once deployed, open the [SQL Workspace](https://confluent.cloud/go/flink), select your Confluent Cloud environment, and run the following queries to make sure your models are working as expected:
 
 #### Test Query 1: Base LLM model
 
@@ -123,7 +146,7 @@ The data generator creates three typical ecommerce data streams:
 ## 3. Create `orders_enriched` table for the agent to use
 
 Enrich the incoming orders stream with customer and product details.
-We’ll use regular joins for this step and configure a state TTL to prevent the state from growing indefinitely.
+We'll use regular joins for this step and configure a state TTL to prevent the state from growing indefinitely.
 
 ```sql
 SET 'sql.state-ttl' = '1 HOURS';
@@ -143,7 +166,7 @@ JOIN products p ON o.product_id = p.product_id;
 
 ### 4. Run  `CREATE TOOL` and `CREATE AGENT`
 
-The agent will use the [Tool Calling](https://docs.confluent.io/cloud/current/ai/builtin-functions/invoke-tool-ai-workflow.html) feature to scrape competitors’ websites, extract the price of the same product, and send an email when a price match is found.
+The agent will use the [Tool Calling](https://docs.confluent.io/cloud/current/ai/builtin-functions/invoke-tool-ai-workflow.html) feature to scrape competitors' websites, extract the price of the same product, and send an email when a price match is found.
 Create a new tool that leverages the remote MCP connection:
 
 ```sql
@@ -192,8 +215,8 @@ WITH (
 ## 5. Run the Agent
 
 The agent will take `orders_enriched` as input and process each order in real time as it is generated.  
-To run the agent continuously, we’ll execute it as part of a **Flink job**.  
-Provide a **user prompt** to guide how the agent processes each incoming enriched order, and create a new table named `price_match_results` to store the agent’s evaluation results.
+To run the agent continuously, we'll execute it as part of a **Flink job**.  
+Provide a **user prompt** to guide how the agent processes each incoming enriched order, and create a new table named `price_match_results` to store the agent's evaluation results.
 
 > [!WARNING]
 >
