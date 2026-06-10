@@ -170,20 +170,28 @@ def _collect_workshop_inputs(
     c = next((x for x in discovered_clusters if x["id"] == cluster_id), None)
     if c:
         cluster_name = _field(c, "name", default=cluster_id)
-        bootstrap_ep = _field(c, "bootstrap_endpoint")
+        bootstrap_ep = _field(c, "bootstrap_endpoint", "endpoint")
         rest_ep = _field(c, "rest_endpoint")
         cloud = _field(c, "cloud", "provider").lower()
         region = _field(c, "region")
     if not bootstrap_ep or not rest_ep:
         try:
             d = _confluent_json(["kafka", "cluster", "describe", cluster_id, "--environment", env_id])
-            bootstrap_ep = bootstrap_ep or _field(d, "bootstrap_endpoint")
+            bootstrap_ep = bootstrap_ep or _field(d, "bootstrap_endpoint", "endpoint")
             rest_ep = rest_ep or _field(d, "rest_endpoint")
             cloud = cloud or _field(d, "cloud", "provider").lower()
             region = region or _field(d, "region")
             cluster_name = cluster_name or _field(d, "name", default=cluster_id)
         except Exception:
             pass
+    # Confluent CLI sometimes prefixes bootstrap endpoint with "SASL_SSL://"
+    if bootstrap_ep and "://" in bootstrap_ep:
+        bootstrap_ep = bootstrap_ep.split("://", 1)[1]
+    if not bootstrap_ep:
+        bootstrap_ep = _prompt_and_cache(
+            creds, creds_file, "WORKSHOP_KAFKA_BOOTSTRAP_ENDPOINT",
+            "Kafka Bootstrap Endpoint (e.g., pkc-xxxxx.region.cloud.confluent.cloud:9092)",
+        )
     cluster_use = subprocess.run(
         ["confluent", "kafka", "cluster", "use", cluster_id],
         capture_output=True, text=True,

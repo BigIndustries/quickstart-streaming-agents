@@ -77,8 +77,18 @@ def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, st
 
     values = dotenv_values(env_file)
 
+    # Resolve bootstrap endpoint — may be empty in older credentials files; derive from REST endpoint.
+    bootstrap = (values.get("TF_VAR_kafka_bootstrap_endpoint") or "").strip("'\"")
+    if not bootstrap:
+        rest_ep = (values.get("TF_VAR_kafka_rest_endpoint") or "").strip("'\"")
+        if rest_ep:
+            # https://pkc-xxxxx.region.cloud.confluent.cloud:443 → pkc-xxxxx...:9092
+            host = rest_ep.removeprefix("https://").removeprefix("http://").rsplit(":", 1)[0]
+            bootstrap = f"{host}:9092"
+    if not bootstrap:
+        return None
+
     required = {
-        "TF_VAR_kafka_bootstrap_endpoint": "bootstrap_servers",
         "TF_VAR_kafka_api_key": "kafka_api_key",
         "TF_VAR_kafka_api_secret": "kafka_api_secret",
         "TF_VAR_schema_registry_rest_endpoint": "schema_registry_url",
@@ -90,7 +100,7 @@ def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, st
         "TF_VAR_cluster_id": "cluster_id",
     }
 
-    credentials = {}
+    credentials = {"bootstrap_servers": bootstrap}
     for env_key, cred_key in required.items():
         val = (values.get(env_key) or "").strip("'\"")
         if not val:
