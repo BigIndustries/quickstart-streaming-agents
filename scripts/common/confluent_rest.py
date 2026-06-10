@@ -136,6 +136,9 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   "search_results",         "LITERAL",  "DESCRIBE"),
         ("TOPIC",   "search_results_response","LITERAL",  "READ"),
         ("TOPIC",   "search_results_response","LITERAL",  "DESCRIBE"),
+        # Shared Flink ML models — participants need READ to call ML_PREDICT
+        ("MODEL",   "llm_textgen_model",      "LITERAL",  "READ"),
+        ("MODEL",   "llm_embedding_model",    "LITERAL",  "READ"),
     ]
 
     # Confluent Cloud RBAC permissions for a newly-created Kafka key can take a few seconds
