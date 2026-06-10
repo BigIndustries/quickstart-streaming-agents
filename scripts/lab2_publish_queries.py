@@ -24,7 +24,9 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+from dotenv import dotenv_values
 
 from .common.cloud_detection import (
     auto_detect_cloud_provider,
@@ -50,6 +52,58 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
         logging.getLogger("scripts.common.cloud_detection").setLevel(logging.ERROR)
 
     return logger
+
+
+def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, str]]:
+    """
+    Load Kafka credentials from a {username}-credentials.env file written by `uv run user`.
+    Returns None if no suitable file is found or required keys are missing.
+    """
+    env_files = list(project_root.glob("*-credentials.env"))
+    if not env_files:
+        return None
+
+    if len(env_files) > 1:
+        print("Multiple credentials files found:")
+        for i, f in enumerate(env_files):
+            print(f"  [{i + 1}] {f.name}")
+        try:
+            choice = int(input("Select file number: ").strip()) - 1
+            env_file = env_files[choice]
+        except (ValueError, IndexError, EOFError):
+            return None
+    else:
+        env_file = env_files[0]
+
+    values = dotenv_values(env_file)
+
+    required = {
+        "TF_VAR_kafka_bootstrap_endpoint": "bootstrap_servers",
+        "TF_VAR_kafka_api_key": "kafka_api_key",
+        "TF_VAR_kafka_api_secret": "kafka_api_secret",
+        "TF_VAR_schema_registry_rest_endpoint": "schema_registry_url",
+        "TF_VAR_schema_registry_api_key": "schema_registry_api_key",
+        "TF_VAR_schema_registry_api_secret": "schema_registry_api_secret",
+    }
+    optional = {
+        "TF_VAR_environment_id": "environment_id",
+        "TF_VAR_cluster_id": "cluster_id",
+    }
+
+    credentials = {}
+    for env_key, cred_key in required.items():
+        val = (values.get(env_key) or "").strip("'\"")
+        if not val:
+            return None
+        credentials[cred_key] = val
+
+    for env_key, cred_key in optional.items():
+        val = (values.get(env_key) or "").strip("'\"")
+        if val:
+            credentials[cred_key] = val
+
+    print(f"  Using credentials from {env_file.name}")
+    return credentials
 
 
 class QueryPublisherCLI:
@@ -211,37 +265,12 @@ Examples:
     args = parser.parse_args()
 
     # Set up logging
-    logger = setup_logging(args.verbose)
+    setup_logging(args.verbose)
 
-    # Determine cloud provider
-    if args.cloud_provider:
-        cloud_provider = args.cloud_provider
-        logger.debug(f"Using specified cloud provider: {cloud_provider}")
-    else:
-        # If query is "aws" or "azure", treat it as cloud provider
-        if args.query in ["aws", "azure"]:
-            cloud_provider = args.query
-            args.query = None
-            logger.debug(
-                f"Interpreted first argument as cloud provider: {cloud_provider}"
-            )
-        else:
-            cloud_provider = auto_detect_cloud_provider()
-            if not cloud_provider:
-                suggestion = suggest_cloud_provider()
-                if suggestion:
-                    logger.info(f"Auto-detected cloud provider: {suggestion}")
-                    cloud_provider = suggestion
-                else:
-                    print(
-                        "❌ Could not auto-detect cloud provider. Please specify 'aws' or 'azure'."
-                    )
-                    return 1
-
-    # Validate cloud provider
-    if not validate_cloud_provider(cloud_provider):
-        print(f"❌ Invalid cloud provider: {cloud_provider}")
-        return 1
+    # If query is "aws" or "azure", treat it as cloud provider
+    if not args.cloud_provider and args.query in ["aws", "azure"]:
+        args.cloud_provider = args.query
+        args.query = None
 
     # Get project root
     try:
@@ -253,19 +282,39 @@ Examples:
     # Ensure Confluent CLI is logged in (auto-login from saved creds if needed)
     ensure_confluent_login()
 
-    # Validate terraform state
-    try:
-        validate_terraform_state(cloud_provider, project_root)
-    except Exception as e:
-        print(f"❌ Terraform validation failed: {e}")
-        return 1
+    # Participants: load credentials from {username}-credentials.env written by `uv run user`
+    # Organizers:  fall back to Terraform state (requires cloud provider detection)
+    credentials = _load_credentials_from_env_file(project_root)
+    if not credentials:
+        # Need cloud provider to locate Terraform state
+        cloud_provider = args.cloud_provider
+        if not cloud_provider:
+            cloud_provider = auto_detect_cloud_provider()
+            if not cloud_provider:
+                cloud_provider = suggest_cloud_provider()
+            if not cloud_provider:
+                print(
+                    "❌ Could not auto-detect cloud provider. Please specify 'aws' or 'azure'."
+                )
+                print("  Tip: participants should run `uv run user` first to create a credentials file.")
+                return 1
 
-    # Extract Kafka credentials
-    try:
-        credentials = extract_kafka_credentials(cloud_provider, project_root)
-    except Exception as e:
-        print(f"❌ Failed to extract Kafka credentials: {e}")
-        return 1
+        if not validate_cloud_provider(cloud_provider):
+            print(f"❌ Invalid cloud provider: {cloud_provider}")
+            return 1
+
+        try:
+            validate_terraform_state(cloud_provider, project_root)
+        except Exception as e:
+            print(f"❌ Terraform validation failed: {e}")
+            print("  Tip: participants should run `uv run user` first to create a credentials file.")
+            return 1
+
+        try:
+            credentials = extract_kafka_credentials(cloud_provider, project_root)
+        except Exception as e:
+            print(f"❌ Failed to extract Kafka credentials: {e}")
+            return 1
 
     # Get query from user if not provided
     query = args.query
