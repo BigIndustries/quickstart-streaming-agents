@@ -82,6 +82,9 @@ def _detect_cli_user_email() -> str | None:
             if ctx.get("current") or ctx.get("is_current") or ctx.get("current_context"):
                 email = ctx.get("username") or ctx.get("name") or ctx.get("email")
                 if email and "@" in email:
+                    # CLI prefixes browser-login context names with "login-"
+                    if email.startswith("login-"):
+                        email = email[len("login-"):]
                     return email
     except Exception:
         pass
