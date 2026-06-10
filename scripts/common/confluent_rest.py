@@ -84,7 +84,7 @@ def create_api_key(display_name, description, sa_id, sa_api_version, resource_id
                 "id": resource_id,
                 "kind": resource_kind,
                 "api_version": resource_api_version,
-                "environment": {"id": env_id},
+                "environment": env_id,
             },
         }
     }
