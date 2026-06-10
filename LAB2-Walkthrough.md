@@ -12,7 +12,7 @@ In this lab, we'll create a Retrieval-Augmented Generation (RAG) pipeline using 
 |----------|---------|
 | `documents` | Kafka topic — organizer publishes docs here |
 | `documents_embed` | Kafka topic — Flink embeds docs from `documents` |
-| MongoDB Sink Connector | Streams `documents_embed` → MongoDB Atlas vector store |
+| `MongoDB Sink Connector` | Streams `documents_embed` → `MongoDB Atlas vector store` |
 | `documents_vectordb_lab2` | Flink lookup table backed by MongoDB |
 | `llm_textgen_model`, `llm_embedding_model` | Shared LLM models |
 
