@@ -71,7 +71,7 @@ cd quickstart-streaming-agents
 ---
 
 <details>
-<summary><strong>🔧 Self-service setup (single user)</strong></summary>
+<summary><strong>🔧 Setup for Workshop Organizer or For Independent Workshops</strong></summary>
 
 <br>
 
@@ -83,12 +83,14 @@ uv run setup
 
 The setup wizard guides you through cloud provider selection, credentials, and deploys your chosen lab(s).
 
+See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for the full organizer checklist.
+
 </details>
 
 ---
 
 <details open>
-<summary><strong>🏫 Workshop participant setup</strong></summary>
+<summary><strong>🏫 Setup for Workshop Participants (For Workshops sharing common cloud resources)</strong></summary>
 
 <br>
 
@@ -106,9 +108,9 @@ uv run setup
 uv run user
 ```
 
-`uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
-
-See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for the full organizer checklist.
+> [!WARNING]
+>
+> `uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
 
 </details>
 
