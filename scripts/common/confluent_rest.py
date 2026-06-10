@@ -97,6 +97,20 @@ def create_api_key(display_name, description, sa_id, sa_api_version, resource_id
     return result["id"], result["spec"]["secret"]
 
 
+def find_user_id_by_email(email: str, api_key: str, api_secret: str) -> str | None:
+    """Return the Confluent Cloud user ID (u-xxxxx) for the given email, or None."""
+    path = "/iam/v2/users?page_size=100"
+    while path:
+        page = cloud_api("GET", path, api_key, api_secret)
+        for user in page.get("data", []):
+            if user.get("email") == email:
+                return user["id"]
+        path = page.get("metadata", {}).get("next", "")
+        if path:
+            path = path.replace(CONFLUENT_API, "")
+    return None
+
+
 def create_role_binding(sa_id, role_name, crn_pattern, api_key, api_secret):
     """Assign a role to the service account. Silently skips if it already exists."""
     cloud_api("POST", "/iam/v2/role-bindings", api_key, api_secret, {

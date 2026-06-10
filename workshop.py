@@ -24,6 +24,7 @@ from scripts.common.confluent_rest import (
     create_api_key,
     create_kafka_acls,
     create_role_binding,
+    find_user_id_by_email,
     get_or_create_service_account,
 )
 from scripts.common.login_checks import confluent_login_interactive
@@ -66,6 +67,23 @@ def _field(d: dict, *keys: str, default: str = "") -> str:
         if v:
             return str(v)
     return default
+
+
+def _get_cli_user_email() -> str | None:
+    """Return the email of the currently logged-in Confluent CLI user, or None."""
+    try:
+        result = subprocess.run(
+            ["confluent", "context", "list", "--output", "json"],
+            capture_output=True, text=True, check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        for ctx in json.loads(result.stdout):
+            if ctx.get("current") or ctx.get("is_current"):
+                return ctx.get("username") or ctx.get("name") or ctx.get("email")
+    except Exception:
+        pass
+    return None
 
 
 def _pick_from_list(items: list, label_fn) -> dict:
@@ -383,8 +401,21 @@ def main():
     print(f"  ✓ Schema Registry API key: {sr_key}")
 
     # SA has CloudClusterAdmin → its Kafka key has admin permissions on the cluster.
-    print("Creating Kafka ACLs...")
+    print("Creating Kafka ACLs for service account...")
     create_kafka_acls(username, sa_id, cluster_id, rest_ep, kafka_key, kafka_secret)
+
+    # Also apply the same ACLs to the participant's personal user account so they can
+    # run Flink SQL queries (including ML_PREDICT) directly in the Confluent Cloud UI.
+    email = _get_cli_user_email()
+    if email:
+        user_id = find_user_id_by_email(email, cloud_api_key, cloud_api_secret)
+        if user_id:
+            print(f"Creating Kafka ACLs for user account ({email})...")
+            create_kafka_acls(username, user_id, cluster_id, rest_ep, kafka_key, kafka_secret)
+        else:
+            print(f"  ⚠ Could not find user {email} in org — Kafka ACLs not applied to personal account.")
+    else:
+        print("  ⚠ Could not detect logged-in CLI user — Kafka ACLs not applied to personal account.")
 
     # --- 6. Lab access summary ---
     print("\nLab access:")
