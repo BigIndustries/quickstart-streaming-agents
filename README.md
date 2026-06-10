@@ -25,6 +25,8 @@ Build real-time AI agents with [Confluent Cloud Streaming Agents](https://docs.c
 </tr>
 </table>
 
+---
+
 ## Prerequisites
 
 **Required accounts & credentials:**
@@ -43,6 +45,7 @@ Build real-time AI agents with [Confluent Cloud Streaming Agents](https://docs.c
 
 <details>
 <summary> Installation commands (Mac/Windows)</summary>
+
 **Mac:**
 
 ```bash
@@ -58,24 +61,36 @@ winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform Con
 
 ## 🚀 Quick Start
 
-**1. Clone the repository:**
+**Clone the repository:**
 
 ```bash
 git clone https://github.com/BigIndustries/quickstart-streaming-agents.git
 cd quickstart-streaming-agents
 ```
 
-### Self-service (single user)
+---
 
-**2. Deploy everything in one step:**
+<details>
+<summary><strong>🔧 Self-service setup (single user)</strong></summary>
+
+<br>
+
+**Deploy everything in one step:**
 
 ```bash
 uv run setup
 ```
 
-The script guides you through cloud provider selection, credentials, and deploys your chosen lab(s).
+The setup wizard guides you through cloud provider selection, credentials, and deploys your chosen lab(s).
 
-### Workshop mode (organizer + multiple participants)
+</details>
+
+---
+
+<details open>
+<summary><strong>🏫 Workshop participant setup</strong></summary>
+
+<br>
 
 The workshop uses a single shared Confluent Cloud account. The organizer provisions the shared environment once; each participant then creates their own namespaced resources.
 
@@ -94,6 +109,10 @@ uv run user
 `uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
 
 See [Workshop Mode Setup Guide](./assets/pre-setup/Workshop-Mode-Setup.md) for the full organizer checklist.
+
+</details>
+
+---
 
 ## Directory Structure
 
