@@ -46,6 +46,8 @@ terraform/providers-azure.tf
 *.env
 !credentials.env.example
 
+*~$*
+
 # Terraform credential backups and sensitive files
 terraform/terraform.tfvars.reset-backup
 terraform/terraform.tfvars.backup
@@ -130,3 +132,5 @@ skills-lock.json
 TEST_RESULTS.md
 /.codex/
 /AGENTS.md
+
+
