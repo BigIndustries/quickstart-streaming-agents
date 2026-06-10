@@ -404,18 +404,22 @@ def main():
     print("Creating Kafka ACLs for service account...")
     create_kafka_acls(username, sa_id, cluster_id, rest_ep, kafka_key, kafka_secret)
 
-    # Also apply the same ACLs to the participant's personal user account so they can
-    # run Flink SQL queries (including ML_PREDICT) directly in the Confluent Cloud UI.
+    # Also apply permissions to the participant's personal user account so they can
+    # run Flink SQL queries (including ML_PREDICT on shared models) in the Confluent Cloud UI.
+    # Model access is controlled by RBAC (not Kafka ACLs), so EnvironmentAdmin is required.
     email = _get_cli_user_email()
     if email:
         user_id = find_user_id_by_email(email, cloud_api_key, cloud_api_secret)
         if user_id:
+            print(f"Granting EnvironmentAdmin to user account ({email})...")
+            create_role_binding(user_id, "EnvironmentAdmin", env_crn, cloud_api_key, cloud_api_secret)
+            print(f"  ✓ EnvironmentAdmin granted")
             print(f"Creating Kafka ACLs for user account ({email})...")
             create_kafka_acls(username, user_id, cluster_id, rest_ep, kafka_key, kafka_secret)
         else:
-            print(f"  ⚠ Could not find user {email} in org — Kafka ACLs not applied to personal account.")
+            print(f"  ⚠ Could not find user {email} in org — permissions not applied to personal account.")
     else:
-        print("  ⚠ Could not detect logged-in CLI user — Kafka ACLs not applied to personal account.")
+        print("  ⚠ Could not detect logged-in CLI user — permissions not applied to personal account.")
 
     # --- 6. Lab access summary ---
     print("\nLab access:")
