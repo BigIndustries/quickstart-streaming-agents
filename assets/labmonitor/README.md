@@ -113,10 +113,10 @@ SELECT
   MAX(answer_ts)         AS last_answered_at,
   COUNT(*)               AS attempts
 FROM quiz_answers
-GROUP BY question_number, participant
-ORDER BY last_answered_at DESC, question_number, participant;
+GROUP BY question_number, participant;
 ```
 
+> Flink streaming queries do not support `ORDER BY` on aggregated fields — sort by clicking column headers in the console.
 > A participant who submitted more than once will show `attempts > 1` with the evolution from `first_answer` to `last_answer`.
 
 ---
