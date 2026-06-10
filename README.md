@@ -139,6 +139,15 @@ quickstart-streaming-agents/
 └── scripts/                            # Python utilities invoked with uv
 ```
 
+## Quiz
+<details>
+<summary>Click to expand</summary>
+
+```bash
+uv run quiz
+```
+
+</details>
 ## Cleanup
 
 ```bash
