@@ -70,9 +70,9 @@ SELECT * FROM search_results LIMIT 5;
 SELECT query, response FROM search_results_response LIMIT 5;
 ```
 
+## Optional: Publish Your Own Documents to VectorDB for RAG knowledgebase
 <details>
-<summary> Publish new documents to Vector DB for RAG feeding</summary>
-## Optional: Publish Your Own Documents
+<summary>Click to expand</summary>
 
 You can extend the knowledge base with any web page. The `web2md` tool fetches a URL and saves it as Markdown; `publish-docs` then streams those files into the shared `documents` topic where they flow through embedding and vector indexing automatically.
 
