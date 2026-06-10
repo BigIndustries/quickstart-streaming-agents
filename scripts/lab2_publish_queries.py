@@ -86,6 +86,8 @@ def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, st
             host = rest_ep.removeprefix("https://").removeprefix("http://").rsplit(":", 1)[0]
             bootstrap = f"{host}:9092"
     if not bootstrap:
+        print(f"  ⚠  {env_file.name}: Kafka bootstrap endpoint is empty and cannot be derived.")
+        print(f"     Re-run `uv run user` to regenerate the credentials file.")
         return None
 
     required = {
@@ -104,6 +106,7 @@ def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, st
     for env_key, cred_key in required.items():
         val = (values.get(env_key) or "").strip("'\"")
         if not val:
+            print(f"  ⚠  {env_file.name}: missing required key {env_key} — re-run `uv run user`.")
             return None
         credentials[cred_key] = val
 
