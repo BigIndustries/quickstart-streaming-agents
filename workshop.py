@@ -69,8 +69,8 @@ def _field(d: dict, *keys: str, default: str = "") -> str:
     return default
 
 
-def _get_cli_user_email() -> str | None:
-    """Return the email of the currently logged-in Confluent CLI user, or None."""
+def _detect_cli_user_email() -> str | None:
+    """Best-effort: return the email of the currently logged-in Confluent CLI user."""
     try:
         result = subprocess.run(
             ["confluent", "context", "list", "--output", "json"],
@@ -79,8 +79,10 @@ def _get_cli_user_email() -> str | None:
         if result.returncode != 0 or not result.stdout.strip():
             return None
         for ctx in json.loads(result.stdout):
-            if ctx.get("current") or ctx.get("is_current"):
-                return ctx.get("username") or ctx.get("name") or ctx.get("email")
+            if ctx.get("current") or ctx.get("is_current") or ctx.get("current_context"):
+                email = ctx.get("username") or ctx.get("name") or ctx.get("email")
+                if email and "@" in email:
+                    return email
     except Exception:
         pass
     return None
@@ -405,21 +407,29 @@ def main():
     create_kafka_acls(username, sa_id, cluster_id, rest_ep, kafka_key, kafka_secret)
 
     # Also apply permissions to the participant's personal user account so they can
-    # run Flink SQL queries (including ML_PREDICT on shared models) in the Confluent Cloud UI.
-    # Model access is controlled by RBAC (not Kafka ACLs), so EnvironmentAdmin is required.
-    email = _get_cli_user_email()
+    # run Flink SQL (including ML_PREDICT on shared models) in the Confluent Cloud UI.
+    # Flink model access is gated by RBAC at the cluster level, not Kafka native ACLs,
+    # so the user needs both EnvironmentAdmin and CloudClusterAdmin (same as the SA).
+    detected_email = _detect_cli_user_email()
+    email = prompt_with_default(
+        "Your Confluent Cloud account email (for UI access, press Enter to skip)",
+        detected_email or creds.get("WORKSHOP_USER_EMAIL", ""),
+    )
     if email:
+        set_key(str(creds_file), "WORKSHOP_USER_EMAIL", email)
         user_id = find_user_id_by_email(email, cloud_api_key, cloud_api_secret)
         if user_id:
-            print(f"Granting EnvironmentAdmin to user account ({email})...")
-            create_role_binding(user_id, "EnvironmentAdmin", env_crn, cloud_api_key, cloud_api_secret)
-            print(f"  ✓ EnvironmentAdmin granted")
+            print(f"Granting EnvironmentAdmin + CloudClusterAdmin to user account ({email})...")
+            create_role_binding(user_id, "EnvironmentAdmin",  env_crn,     cloud_api_key, cloud_api_secret)
+            create_role_binding(user_id, "CloudClusterAdmin", cluster_crn, cloud_api_key, cloud_api_secret)
+            print("  ✓ EnvironmentAdmin + CloudClusterAdmin granted")
             print(f"Creating Kafka ACLs for user account ({email})...")
             create_kafka_acls(username, user_id, cluster_id, rest_ep, kafka_key, kafka_secret)
         else:
-            print(f"  ⚠ Could not find user {email} in org — permissions not applied to personal account.")
+            print(f"  ⚠ User {email} not found in this org — UI permissions not applied.")
+            print("    Check the email matches your Confluent Cloud login.")
     else:
-        print("  ⚠ Could not detect logged-in CLI user — permissions not applied to personal account.")
+        print("  Skipping user account permissions (no email provided).")
 
     # --- 6. Lab access summary ---
     print("\nLab access:")
