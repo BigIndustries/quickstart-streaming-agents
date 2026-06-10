@@ -133,6 +133,7 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("CLUSTER", "kafka-cluster", "LITERAL",  "DESCRIBE"),
         # Shared Lab2 source topic
         ("TOPIC",   "documents",     "LITERAL",  "READ"),
+        ("TOPIC",   "documents",     "LITERAL",  "WRITE"),
         ("TOPIC",   "documents",     "LITERAL",  "DESCRIBE"),
         # Shared Lab1 source topics — participants can query these with their own Flink key
         ("TOPIC",   "orders",                 "LITERAL",  "READ"),
@@ -215,6 +216,59 @@ def set_topic_retention(topic_name, cluster_id, rest_endpoint, kafka_key, kafka_
             continue
         print(f"    ⚠ Could not set retention on {topic_name}: HTTP {resp.status_code}", file=sys.stderr)
         return
+
+
+def resume_stopped_flink_statements(org_id, env_id, flink_endpoint, flink_key, flink_secret):
+    """
+    List all Flink statements in the environment and resume any that are STOPPED.
+    Safe to call after terraform apply — idempotent, skips RUNNING/COMPLETED statements.
+    """
+    path = f"/sql/v1/organizations/{org_id}/environments/{env_id}/statements"
+    try:
+        result = flink_rest("GET", path, flink_endpoint, flink_key, flink_secret)
+    except SystemExit:
+        print("  ⚠ Could not list Flink statements (check flink endpoint/credentials)")
+        return
+
+    stopped = [
+        s for s in result.get("data", [])
+        if s.get("status", {}).get("phase") == "STOPPED"
+    ]
+
+    if not stopped:
+        print("  ✓ All Flink statements running")
+        return
+
+    print(f"  Resuming {len(stopped)} stopped Flink statement(s)...")
+    for stmt in stopped:
+        name = stmt["name"]
+        spec = dict(stmt.get("spec", {}))
+        spec["stopped"] = False
+        try:
+            flink_rest(
+                "PUT",
+                f"{path}/{name}",
+                flink_endpoint, flink_key, flink_secret,
+                body={"name": name, "spec": spec},
+            )
+        except SystemExit:
+            print(f"    ⚠ {name}: failed to resume")
+            continue
+
+        deadline = time.time() + _FLINK_POLL_TIMEOUT
+        while time.time() < deadline:
+            time.sleep(_FLINK_POLL_INTERVAL)
+            status = flink_rest("GET", f"{path}/{name}", flink_endpoint, flink_key, flink_secret)
+            phase = status.get("status", {}).get("phase", "PENDING")
+            if phase in ("RUNNING", "COMPLETED"):
+                print(f"    ✓ {name} ({phase.lower()})")
+                break
+            if phase == "FAILED":
+                detail = status.get("status", {}).get("detail", "no detail")
+                print(f"    ⚠ {name} failed to resume: {detail}")
+                break
+        else:
+            print(f"    ⚠ {name} timed out waiting for RUNNING/COMPLETED")
 
 
 def run_flink_statement(stmt_name, sql, org_id, env_id, pool_id, sa_id, flink_endpoint, flink_key, flink_secret, env_name, cluster_name):

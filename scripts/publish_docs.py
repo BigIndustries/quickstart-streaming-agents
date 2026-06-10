@@ -32,9 +32,10 @@ from .common.cloud_detection import (
     validate_cloud_provider,
     suggest_cloud_provider,
 )
-from .common.login_checks import check_confluent_login, ensure_confluent_login
+from .common.login_checks import check_confluent_login, ensure_confluent_login, _username_from_cli
 from .common.terraform import (
     extract_kafka_credentials,
+    load_credentials_from_env_file,
     validate_terraform_state,
     get_project_root,
 )
@@ -105,6 +106,11 @@ class FlinkDocsPublisherCLI:
                 "type": ["null", "int"],
                 "default": None,
             },
+            {
+                "name": "document_publisher",
+                "type": ["null", "string"],
+                "default": None,
+            },
         ],
     }
 
@@ -120,6 +126,7 @@ class FlinkDocsPublisherCLI:
         cluster_id: str = None,
         dry_run: bool = False,
         max_workers: int = 10,
+        document_publisher: str = None,
     ):
         """Initialize the publisher with Kafka and Schema Registry configuration."""
         self.bootstrap_servers = bootstrap_servers
@@ -132,6 +139,7 @@ class FlinkDocsPublisherCLI:
         self.cluster_id = cluster_id
         self.dry_run = dry_run
         self.max_workers = max_workers
+        self.document_publisher = document_publisher
         self.logger = logging.getLogger(__name__)
 
         # Instance lock to prevent multiple workers from checking login simultaneously
@@ -273,6 +281,9 @@ class FlinkDocsPublisherCLI:
                 "policy_keywords": wrap_string_array(document.get("policy_keywords")),
                 "char_count": {"int": int(document["char_count"])}
                 if document.get("char_count") is not None
+                else None,
+                "document_publisher": {"string": self.document_publisher}
+                if self.document_publisher
                 else None,
             }
 
@@ -607,6 +618,14 @@ Examples:
     ensure_confluent_login()
     logger.info("✓ Confluent CLI logged in")
 
+    # Try participant credentials file first; fall back to Terraform state below
+    try:
+        project_root = get_project_root()
+    except Exception as e:
+        logger.error(f"Could not find project root: {e}")
+        return 1
+    credentials = load_credentials_from_env_file(project_root)
+
     # Determine lab number and docs directory
     if args.docs_dir:
         # Custom docs directory provided, skip lab detection
@@ -668,19 +687,20 @@ Examples:
 
     # Only validate terraform and clear MongoDB for lab-based publishing
     if cloud_provider:
-        # Validate terraform state
-        try:
-            validate_terraform_state(cloud_provider, project_root)
-        except Exception as e:
-            logger.error(f"Terraform validation failed: {e}")
-            return 1
+        if not credentials:
+            # Validate terraform state
+            try:
+                validate_terraform_state(cloud_provider, project_root)
+            except Exception as e:
+                logger.error(f"Terraform validation failed: {e}")
+                return 1
 
-        # Extract Kafka credentials
-        try:
-            credentials = extract_kafka_credentials(cloud_provider, project_root)
-        except Exception as e:
-            logger.error(f"Failed to extract Kafka credentials: {e}")
-            return 1
+            # Extract Kafka credentials
+            try:
+                credentials = extract_kafka_credentials(cloud_provider, project_root)
+            except Exception as e:
+                logger.error(f"Failed to extract Kafka credentials: {e}")
+                return 1
 
         # Prompt to clear MongoDB collection (if not in dry-run mode)
         if not args.dry_run:
@@ -688,22 +708,23 @@ Examples:
                 logger.error("MongoDB clearing failed")
                 return 1
     else:
-        # Custom directory mode - extract credentials from terraform in current directory
-        try:
-            project_root = get_project_root()
-            cloud_provider_temp = auto_detect_cloud_provider()
-            if not cloud_provider_temp:
-                cloud_provider_temp = suggest_cloud_provider()
-            credentials = extract_kafka_credentials(cloud_provider_temp, project_root)
-        except Exception as e:
-            logger.error(f"Failed to extract Kafka credentials: {e}")
-            logger.error(
-                "Make sure you're running from a terraform-deployed project directory"
-            )
-            return 1
+        if not credentials:
+            # Custom directory mode - extract credentials from terraform in current directory
+            try:
+                cloud_provider_temp = auto_detect_cloud_provider()
+                if not cloud_provider_temp:
+                    cloud_provider_temp = suggest_cloud_provider()
+                credentials = extract_kafka_credentials(cloud_provider_temp, project_root)
+            except Exception as e:
+                logger.error(f"Failed to extract Kafka credentials: {e}")
+                logger.error(
+                    "Make sure you're running from a terraform-deployed project directory"
+                )
+                return 1
 
     # Initialize publisher
     try:
+        document_publisher = credentials.get("username") or _username_from_cli()
         publisher = FlinkDocsPublisherCLI(
             bootstrap_servers=credentials["bootstrap_servers"],
             kafka_api_key=credentials["kafka_api_key"],
@@ -715,6 +736,7 @@ Examples:
             cluster_id=credentials.get("cluster_id"),
             dry_run=args.dry_run,
             max_workers=args.workers,
+            document_publisher=document_publisher,
         )
     except Exception as e:
         logger.error(f"Failed to initialize publisher: {e}")

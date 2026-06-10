@@ -7,12 +7,41 @@ Provides functions for:
 - Checking Azure CLI login status
 """
 
+import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
 from dotenv import dotenv_values
+
+
+def _username_from_cli() -> Optional[str]:
+    """Derive a username from the currently logged-in Confluent CLI context.
+
+    Reads the current context email and returns a sanitized local part
+    (e.g. alice.smith@example.com → alice_smith). Returns None if the CLI
+    is not logged in or the context cannot be parsed.
+    """
+    try:
+        result = subprocess.run(
+            ["confluent", "context", "list", "--output", "json"],
+            capture_output=True, text=True, check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        for ctx in json.loads(result.stdout):
+            if ctx.get("current") or ctx.get("is_current") or ctx.get("current_context"):
+                email = ctx.get("username") or ctx.get("name") or ctx.get("email") or ""
+                if email.startswith("login-"):
+                    email = email[len("login-"):]
+                if "@" in email:
+                    local = email.split("@")[0]
+                    return re.sub(r"[^a-z0-9]", "_", local.lower()).strip("_")[:20]
+    except Exception:
+        pass
+    return None
 
 
 def check_confluent_login() -> bool:

@@ -49,6 +49,7 @@ dependencies = [
     "azure-mgmt-resource>=23.0.0",
     "azure-ai-inference>=1.0.0b1",
     "requests>=2.31.0",
+    "html2text>=2020.1.16",
     "confluent-kafka[avro,schema-registry]>=2.3.0",
     "questionary>=2.0.0",
     "rich>=13.0.0",
@@ -137,6 +138,8 @@ setup-mcp = "scripts.mcp_setup:main"
 #
 setup_rtce = "scripts.setup_rtce:main"
 setup-rtce = "scripts.setup_rtce:main"
+#
+web2md = "scripts.web2md:main"
 
 
 [project.urls]

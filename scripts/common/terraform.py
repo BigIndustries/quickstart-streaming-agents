@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+from dotenv import dotenv_values
+
 logger = logging.getLogger(__name__)
 
 
@@ -189,6 +191,71 @@ def validate_terraform_state(
     except (FileNotFoundError, KeyError, ValueError) as e:
         logger.error(f"Terraform state validation failed: {e}")
         return False
+
+
+def load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, str]]:
+    """Load Kafka credentials from a {username}-credentials.env file written by `uv run user`.
+
+    Returns a credentials dict (same shape as extract_kafka_credentials) on success,
+    or None if no suitable file is found or required keys are missing.
+    """
+    env_files = list(project_root.glob("*-credentials.env"))
+    if not env_files:
+        return None
+
+    if len(env_files) > 1:
+        print("Multiple credentials files found:")
+        for i, f in enumerate(env_files):
+            print(f"  [{i + 1}] {f.name}")
+        try:
+            choice = int(input("Select file number: ").strip()) - 1
+            env_file = env_files[choice]
+        except (ValueError, IndexError, EOFError):
+            return None
+    else:
+        env_file = env_files[0]
+
+    values = dotenv_values(env_file)
+
+    bootstrap = (values.get("TF_VAR_kafka_bootstrap_endpoint") or "").strip("'\"")
+    if not bootstrap:
+        rest_ep = (values.get("TF_VAR_kafka_rest_endpoint") or "").strip("'\"")
+        if rest_ep:
+            host = rest_ep.removeprefix("https://").removeprefix("http://").rsplit(":", 1)[0]
+            bootstrap = f"{host}:9092"
+    if not bootstrap:
+        print(f"  ⚠  {env_file.name}: Kafka bootstrap endpoint is empty and cannot be derived.")
+        print(f"     Re-run `uv run user` to regenerate the credentials file.")
+        return None
+
+    required = {
+        "TF_VAR_kafka_api_key": "kafka_api_key",
+        "TF_VAR_kafka_api_secret": "kafka_api_secret",
+        "TF_VAR_schema_registry_rest_endpoint": "schema_registry_url",
+        "TF_VAR_schema_registry_api_key": "schema_registry_api_key",
+        "TF_VAR_schema_registry_api_secret": "schema_registry_api_secret",
+    }
+    optional = {
+        "TF_VAR_environment_id": "environment_id",
+        "TF_VAR_cluster_id": "cluster_id",
+        "WORKSHOP_USERNAME": "username",
+    }
+
+    credentials: Dict[str, str] = {"bootstrap_servers": bootstrap}
+    for env_key, cred_key in required.items():
+        val = (values.get(env_key) or "").strip("'\"")
+        if not val:
+            print(f"  ⚠  {env_file.name}: missing required key {env_key} — re-run `uv run user`.")
+            return None
+        credentials[cred_key] = val
+
+    for env_key, cred_key in optional.items():
+        val = (values.get(env_key) or "").strip("'\"")
+        if val:
+            credentials[cred_key] = val
+
+    print(f"  Using credentials from {env_file.name}")
+    return credentials
 
 
 def get_project_root() -> Path:

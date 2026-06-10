@@ -106,7 +106,7 @@ resource "confluent_flink_statement" "queries_table" {
     secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
   }
 
-  statement = "CREATE TABLE `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.queries ( query STRING NOT NULL );"
+  statement = "CREATE TABLE `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.queries ( query STRING NOT NULL, query_user STRING );"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
@@ -175,7 +175,7 @@ resource "confluent_flink_statement" "queries_insert_sample" {
     secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
   }
 
-  statement = "INSERT INTO queries VALUES ('How do I create a Flink table?');"
+  statement = "INSERT INTO queries (query) VALUES ('How do I create a Flink table?');"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
@@ -367,7 +367,7 @@ resource "confluent_flink_statement" "documents_table" {
     secret = data.terraform_remote_state.core.outputs.app_manager_flink_api_secret
   }
 
-  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents` ( document_id STRING, document_text STRING, pages STRING, section_reference STRING, title STRING, fraud_categories ARRAY<STRING>, policy_keywords ARRAY<STRING>, char_count INT );"
+  statement = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`documents` ( document_id STRING, document_text STRING, pages STRING, section_reference STRING, title STRING, fraud_categories ARRAY<STRING>, policy_keywords ARRAY<STRING>, char_count INT, document_publisher STRING );"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name

@@ -26,16 +26,15 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from dotenv import dotenv_values
-
 from .common.cloud_detection import (
     auto_detect_cloud_provider,
     validate_cloud_provider,
     suggest_cloud_provider,
 )
-from .common.login_checks import ensure_confluent_login
+from .common.login_checks import ensure_confluent_login, _username_from_cli
 from .common.terraform import (
     extract_kafka_credentials,
+    load_credentials_from_env_file,
     validate_terraform_state,
     get_project_root,
 )
@@ -54,69 +53,6 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     return logger
 
 
-def _load_credentials_from_env_file(project_root: Path) -> Optional[Dict[str, str]]:
-    """
-    Load Kafka credentials from a {username}-credentials.env file written by `uv run user`.
-    Returns None if no suitable file is found or required keys are missing.
-    """
-    env_files = list(project_root.glob("*-credentials.env"))
-    if not env_files:
-        return None
-
-    if len(env_files) > 1:
-        print("Multiple credentials files found:")
-        for i, f in enumerate(env_files):
-            print(f"  [{i + 1}] {f.name}")
-        try:
-            choice = int(input("Select file number: ").strip()) - 1
-            env_file = env_files[choice]
-        except (ValueError, IndexError, EOFError):
-            return None
-    else:
-        env_file = env_files[0]
-
-    values = dotenv_values(env_file)
-
-    # Resolve bootstrap endpoint — may be empty in older credentials files; derive from REST endpoint.
-    bootstrap = (values.get("TF_VAR_kafka_bootstrap_endpoint") or "").strip("'\"")
-    if not bootstrap:
-        rest_ep = (values.get("TF_VAR_kafka_rest_endpoint") or "").strip("'\"")
-        if rest_ep:
-            # https://pkc-xxxxx.region.cloud.confluent.cloud:443 → pkc-xxxxx...:9092
-            host = rest_ep.removeprefix("https://").removeprefix("http://").rsplit(":", 1)[0]
-            bootstrap = f"{host}:9092"
-    if not bootstrap:
-        print(f"  ⚠  {env_file.name}: Kafka bootstrap endpoint is empty and cannot be derived.")
-        print(f"     Re-run `uv run user` to regenerate the credentials file.")
-        return None
-
-    required = {
-        "TF_VAR_kafka_api_key": "kafka_api_key",
-        "TF_VAR_kafka_api_secret": "kafka_api_secret",
-        "TF_VAR_schema_registry_rest_endpoint": "schema_registry_url",
-        "TF_VAR_schema_registry_api_key": "schema_registry_api_key",
-        "TF_VAR_schema_registry_api_secret": "schema_registry_api_secret",
-    }
-    optional = {
-        "TF_VAR_environment_id": "environment_id",
-        "TF_VAR_cluster_id": "cluster_id",
-    }
-
-    credentials = {"bootstrap_servers": bootstrap}
-    for env_key, cred_key in required.items():
-        val = (values.get(env_key) or "").strip("'\"")
-        if not val:
-            print(f"  ⚠  {env_file.name}: missing required key {env_key} — re-run `uv run user`.")
-            return None
-        credentials[cred_key] = val
-
-    for env_key, cred_key in optional.items():
-        val = (values.get(env_key) or "").strip("'\"")
-        if val:
-            credentials[cred_key] = val
-
-    print(f"  Using credentials from {env_file.name}")
-    return credentials
 
 
 class QueryPublisherCLI:
@@ -127,7 +63,10 @@ class QueryPublisherCLI:
         "type": "record",
         "name": "queries_value",
         "namespace": "org.apache.flink.avro.generated.record",
-        "fields": [{"name": "query", "type": ["null", "string"], "default": None}],
+        "fields": [
+            {"name": "query", "type": ["null", "string"], "default": None},
+            {"name": "query_user", "type": ["null", "string"], "default": None},
+        ],
     }
 
     def __init__(
@@ -165,21 +104,24 @@ class QueryPublisherCLI:
         self.schema_file.flush()
         self.logger.debug(f"Created schema file: {self.schema_file.name}")
 
-    def publish_query(self, query: str, topic: str = "queries") -> bool:
+    def publish_query(self, query: str, topic: str = "queries", query_user: str = None) -> bool:
         """
         Publish a single query to Kafka using Confluent CLI.
 
         Args:
             query: SQL query to publish
             topic: Kafka topic name (defaults to 'queries')
+            query_user: participant username prefix (optional)
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Create Avro record with union type formatting
             # For union types ["null", "string"], values must be wrapped as {"string": "value"}
-            value = {"query": {"string": query}}
+            value = {
+                "query": {"string": query},
+                "query_user": {"string": query_user} if query_user else None,
+            }
 
             # Prepare confluent CLI command
             cmd = [
@@ -297,7 +239,7 @@ Examples:
 
     # Participants: load credentials from {username}-credentials.env written by `uv run user`
     # Organizers:  fall back to Terraform state (requires cloud provider detection)
-    credentials = _load_credentials_from_env_file(project_root)
+    credentials = load_credentials_from_env_file(project_root)
     if not credentials:
         # Need cloud provider to locate Terraform state
         cloud_provider = args.cloud_provider
@@ -359,7 +301,8 @@ Examples:
 
     # Publish query
     try:
-        success = publisher.publish_query(query, args.topic)
+        query_user = credentials.get("username") or _username_from_cli()
+        success = publisher.publish_query(query, args.topic, query_user)
         if not success:
             return 1
 

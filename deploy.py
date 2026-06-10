@@ -12,6 +12,7 @@ Non-interactive modes (--automated, --testing) use the region in credentials.env
 
 import argparse
 import getpass
+import json as _json
 import os
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from scripts.common.credentials import (
     load_or_create_credentials_file,
     generate_confluent_api_keys,
 )
+from scripts.common.confluent_rest import resume_stopped_flink_statements
 from scripts.common.login_checks import ensure_confluent_login, _attempt_login_quiet
 from scripts.common.terraform import get_project_root, run_terraform_output
 from scripts.common.terraform_runner import run_terraform
@@ -126,7 +128,6 @@ def _print_participant_handout(creds: dict, env_id: str, cluster_id: str) -> Non
             ["confluent", "organization", "describe", "--output", "json"],
             capture_output=True, text=True, check=True,
         )
-        import json as _json
         org_id = _json.loads(r.stdout).get("id", "")
     except Exception:
         org_id = ""
@@ -780,6 +781,23 @@ def main():
                 )
             env_id_out     = core_outputs.get("confluent_environment_id", "")
             cluster_id_out = core_outputs.get("confluent_kafka_cluster_id", "")
+
+            # Resume any Flink statements that were stopped (e.g. cancelled mid-setup)
+            flink_endpoint = core_outputs.get("confluent_flink_rest_endpoint", "")
+            flink_key      = core_outputs.get("app_manager_flink_api_key", "")
+            flink_secret   = core_outputs.get("app_manager_flink_api_secret", "")
+            try:
+                org_result = subprocess.run(
+                    ["confluent", "organization", "describe", "--output", "json"],
+                    capture_output=True, text=True, check=True,
+                )
+                org_id = _json.loads(org_result.stdout).get("id", "")
+            except Exception:
+                org_id = ""
+            if flink_endpoint and flink_key and flink_secret and org_id and env_id_out:
+                print("\n--- Checking Flink statement health ---")
+                resume_stopped_flink_statements(org_id, env_id_out, flink_endpoint, flink_key, flink_secret)
+
             if env_id_out and cluster_id_out:
                 _print_participant_handout(creds, env_id_out, cluster_id_out)
         except Exception as e:
