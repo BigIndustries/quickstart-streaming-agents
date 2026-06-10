@@ -22,7 +22,7 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
 
 ### API keys & access
 
-> [!NOTE]
+> ℹ️ NOTE
 >
 > The credentials below are not required in instructor-led workshops — they will be provided for you.
 
@@ -30,7 +30,7 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
   - No AWS/Azure account required - just the LLM API credentials!
   - **Easy key creation:** Run `uv run api-keys create` to quickly generate ready-to-use credentials
 
-> [!WARNING]
+> ⚠️
 >
 > **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
 
@@ -60,7 +60,7 @@ LATERAL TABLE(ML_PREDICT('llm_textgen_model', question, MAP['debug', 'true'])) a
 
 #### Test Query 2: LLM Tool Calling Model
 
-> [!WARNING]
+> ⚠️
 >
 > Don't forget to add the email address where you want to receive the test email, to the query below.
 
@@ -94,7 +94,7 @@ Begin generating data with the following command:
 uv run lab1_datagen --local
 ```
 
-> [!NOTE]
+> ℹ️
 >
 > Keep this command running in your terminal — it produces one order every 2 minutes. Proceed with the lab while it runs.
 
@@ -123,7 +123,7 @@ JOIN customers c ON o.customer_id = c.customer_id
 JOIN products p ON o.product_id = p.product_id;
 ```
 
-> NOTE: Leave the query running so that it runs continuously.
+> ℹ️ NOTE: Leave the query running so that it runs continuously.
 
 ## 4. Run `CREATE TOOL` and `CREATE AGENT`
 
@@ -176,7 +176,7 @@ WITH (
 
 The agent will take `enriched_orders` as input and process each order in real time as it is generated. To run the agent continuously, we'll execute it as part of a **Flink job**. Provide a **user prompt** to guide how the agent processes each incoming enriched order, and create a new table named `price_match_results` to store the agent's evaluation results.
 
-> [!WARNING]
+> ⚠️
 >
 > Don't forget to modify the line beginning with `EMAIL RECIPIENT:` in the query below to include the email address where you want the price matching emails sent!
 
@@ -259,10 +259,12 @@ SELECT * FROM price_match_results;
 
 <br>
 
-> [!NOTE]
-> The organizer is already generating data into the shared `orders`, `customers`, and `products` topics — **skip Step 2**. All resources you create must be prefixed with your workshop username to avoid conflicts with other participants.
+> ℹ️
+> 
+> The organizer is already generating data into the shared `orders`, `customers`, and `products` topics. 
+> All resources you now onwards create must be prefixed with your workshop username to avoid conflicts with other participants.
 >
-> Your username prefix was shown when you ran `uv run user` (e.g. `alice_`). Replace `{username}` throughout the queries below with your own prefix.
+> Your username prefix was shown when you ran `uv run user` (e.g. `matthias_`). Replace `{username}` throughout the queries below with your own prefix.
 
 ## 3. Create your `{username}_enriched_orders` table
 
@@ -282,7 +284,7 @@ JOIN customers c ON o.customer_id = c.customer_id
 JOIN products p ON o.product_id = p.product_id;
 ```
 
-> NOTE: Leave the query running so that it runs continuously.
+> ℹ️ NOTE: Leave the query running so that it runs continuously.
 
 ## 4. Run `CREATE TOOL` and `CREATE AGENT`
 
@@ -331,7 +333,7 @@ WITH (
 
 Create your prefixed results table. All created objects read from the shared source topics and write to your own namespaced tables.
 
-> [!WARNING]
+> ⚠️
 >
 > Don't forget to replace `{username}` with your workshop username prefix **and** replace `<<YOUR-EMAIL-ADDRESS-HERE>>` with your email address.
 
