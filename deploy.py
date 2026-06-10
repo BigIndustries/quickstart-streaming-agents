@@ -121,8 +121,8 @@ def _flush_pending_writes(creds_file) -> None:
         sys.exit(1)
 
 
-def _print_participant_handout(creds: dict, env_id: str, cluster_id: str) -> None:
-    """Print the details participants need to run `uv run user`."""
+def _print_participant_handout(creds: dict, core_outputs: dict) -> None:
+    """Print all values participants are prompted for when running `uv run user`."""
     try:
         r = subprocess.run(
             ["confluent", "organization", "describe", "--output", "json"],
@@ -132,19 +132,33 @@ def _print_participant_handout(creds: dict, env_id: str, cluster_id: str) -> Non
     except Exception:
         org_id = ""
 
+    na = "(not available — check credentials.env or re-run setup)"
+
+    def _v(value: str) -> str:
+        return value if value else na
+
+    env_id     = core_outputs.get("confluent_environment_id", "")
+    cluster_id = core_outputs.get("confluent_kafka_cluster_id", "")
+    sr_id      = core_outputs.get("confluent_schema_registry_id", "")
+
     cloud_key    = creds.get("TF_VAR_confluent_cloud_api_key", "")
     cloud_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
+    mcp_url      = creds.get("TF_VAR_bigind_mcp_endpoint", "")
+    mcp_token    = creds.get("TF_VAR_bigind_mcp_token", "")
 
-    na = "(not available — check credentials.env or re-run setup)"
     print("\n" + "=" * 60)
     print("SHARE WITH WORKSHOP PARTICIPANTS")
     print("=" * 60)
     print("Participants need these values when running:  uv run user")
     print()
-    print(f"  Confluent Organisation ID : {org_id or na}")
-    print(f"  Confluent Environment ID  : {env_id or na}")
-    print(f"  Workshop Cloud API Key    : {cloud_key or na}")
-    print(f"  Workshop Cloud API Secret : {cloud_secret or na}")
+    print(f"  Confluent Organisation ID    : {_v(org_id)}")
+    print(f"  Confluent Environment ID     : {_v(env_id)}")
+    print(f"  Workshop Cloud API Key       : {_v(cloud_key)}")
+    print(f"  Workshop Cloud API Secret    : {_v(cloud_secret)}")
+    print(f"  Kafka Cluster ID             : {_v(cluster_id)}")
+    print(f"  Schema Registry Cluster ID   : {_v(sr_id)}")
+    print(f"  Big Industries MCP URL       : {_v(mcp_url)}")
+    print(f"  Big Industries MCP Token     : {_v(mcp_token)}")
     print("=" * 60)
 
 
@@ -773,7 +787,8 @@ def main():
 
     # Read core Terraform outputs then show participant handout and run health checks
     core_state_path = root / "terraform" / "core" / "terraform.tfstate"
-    env_id_out = cluster_id_out = ""
+    core_outputs: dict = {}
+    env_id_out = ""
     if core_state_path.exists():
         try:
             core_outputs = run_terraform_output(core_state_path)
@@ -781,22 +796,20 @@ def main():
                 print(
                     f"\nEnvironment name: {core_outputs['confluent_environment_display_name']}"
                 )
-            env_id_out     = core_outputs.get("confluent_environment_id", "")
-            cluster_id_out = core_outputs.get("confluent_kafka_cluster_id", "")
+            env_id_out = core_outputs.get("confluent_environment_id", "")
         except Exception as e:
             print(f"\n⚠ Could not read Terraform outputs: {e}")
 
     # Always show participant handout — printed before any optional health checks
     # so it is never suppressed by a downstream error
-    _print_participant_handout(creds, env_id_out, cluster_id_out)
+    _print_participant_handout(creds, core_outputs)
 
     # Resume any Flink statements that were stopped (e.g. cancelled mid-setup)
-    if env_id_out and core_state_path.exists():
+    if env_id_out and core_outputs:
         try:
-            _co = run_terraform_output(core_state_path)
-            flink_endpoint = _co.get("confluent_flink_rest_endpoint", "")
-            flink_key      = _co.get("app_manager_flink_api_key", "")
-            flink_secret   = _co.get("app_manager_flink_api_secret", "")
+            flink_endpoint = core_outputs.get("confluent_flink_rest_endpoint", "")
+            flink_key      = core_outputs.get("app_manager_flink_api_key", "")
+            flink_secret   = core_outputs.get("app_manager_flink_api_secret", "")
             try:
                 org_result = subprocess.run(
                     ["confluent", "organization", "describe", "--output", "json"],
