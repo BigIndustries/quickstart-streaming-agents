@@ -5,7 +5,28 @@ Each query produces a continuously updating result as new events arrive.
 
 ---
 
-## 1. Participant Query Leaderboard
+## 1. Lab 1 Live Order Rate
+
+Orders and revenue per minute, most recent windows shown first.
+Confirms the Lab 1 data generator is running and quantifies throughput.
+
+```sql
+SELECT
+  window_start,
+  window_end,
+  COUNT(*)             AS orders,
+  ROUND(SUM(price), 2) AS revenue
+FROM TABLE(
+  TUMBLE(TABLE orders, DESCRIPTOR(order_ts), INTERVAL '1' MINUTE)
+)
+GROUP BY window_start, window_end
+ORDER BY window_start DESC
+LIMIT 10;
+```
+
+---
+
+## 2. Participant Query Leaderboard
 
 Who is most active in Lab 2 — ranked by number of queries sent.
 
@@ -20,7 +41,7 @@ ORDER BY queries_sent DESC;
 
 ---
 
-## 2. RAG Pipeline Depth
+## 3. RAG Pipeline Depth
 
 How many queries have made it through each stage of the pipeline.
 A healthy workshop shows roughly equal counts across all four stages.
@@ -40,7 +61,7 @@ SELECT 'search_results_response',           COUNT(*) FROM search_results_respons
 
 ---
 
-## 3. Knowledge Base Hot Spots
+## 4. Knowledge Base Hot Spots
 
 Which documents are being retrieved most across all three result slots.
 Shows which parts of the knowledge base participants find most relevant.
@@ -63,7 +84,7 @@ LIMIT 10;
 
 ---
 
-## 4. Search Quality per Participant
+## 5. Search Quality per Participant
 
 Average similarity score of the top result per participant.
 Higher score means the participant's queries are well-matched to the indexed knowledge base.
@@ -82,7 +103,7 @@ ORDER BY avg_top_score DESC;
 
 ---
 
-## 5. Documents Published per Participant
+## 6. Documents Published per Participant
 
 How much each participant has contributed to the shared knowledge base in Lab 2.
 
@@ -98,7 +119,7 @@ ORDER BY docs_published DESC;
 
 ---
 
-## 6. Quiz Answer Tracker
+## 7. Quiz Answer Tracker
 
 Live view of all quiz answers per participant and question.
 Shows first and last answer submitted, when each was sent, and how many attempts were made.
@@ -120,22 +141,3 @@ GROUP BY question_number, participant;
 > A participant who submitted more than once will show `attempts > 1` with the evolution from `first_answer` to `last_answer`.
 
 ---
-
-## 7. Lab 1 Live Order Rate
-
-Orders and revenue per minute, most recent windows shown first.
-Confirms the Lab 1 data generator is running and quantifies throughput.
-
-```sql
-SELECT
-  window_start,
-  window_end,
-  COUNT(*)             AS orders,
-  ROUND(SUM(price), 2) AS revenue
-FROM TABLE(
-  TUMBLE(TABLE orders, DESCRIPTOR(order_ts), INTERVAL '1' MINUTE)
-)
-GROUP BY window_start, window_end
-ORDER BY window_start DESC
-LIMIT 10;
-```
