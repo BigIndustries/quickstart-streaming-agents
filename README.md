@@ -43,7 +43,7 @@ Build real-time AI agents with [Confluent Cloud Streaming Agents](https://docs.c
 - **[uv](https://github.com/astral-sh/uv)**
 - **[AWS CLI](https://github.com/aws/aws-cli)** or **[Azure CLI](https://github.com/Azure/azure-cli)** tools for generating API keys
 
-<details>
+<details open>
 <summary> Installation commands (Mac/Windows)</summary>
 
 **Mac:**
@@ -55,7 +55,7 @@ brew install uv git python && brew tap hashicorp/tap && brew install hashicorp/t
 **Windows:**
 
 ```powershell
-winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform ConfluentInc.Confluent-CLI Python.Python
+winget install astral-sh.uv Git.Git Docker.DockerDesktop Hashicorp.Terraform ConfluentInc.Confluent-CLI Python.Python.3.12
 ```
 </details>
 
