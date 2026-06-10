@@ -98,7 +98,30 @@ ORDER BY docs_published DESC;
 
 ---
 
-## 6. Lab 1 Live Order Rate
+## 6. Quiz Answer Tracker
+
+Live view of all quiz answers per participant and question.
+Shows first and last answer submitted, when each was sent, and how many attempts were made.
+
+```sql
+SELECT
+  question_number,
+  participant,
+  FIRST_VALUE(answer)    AS first_answer,
+  LAST_VALUE(answer)     AS last_answer,
+  MIN(answer_ts)         AS first_answered_at,
+  MAX(answer_ts)         AS last_answered_at,
+  COUNT(*)               AS attempts
+FROM quiz_answers
+GROUP BY question_number, participant
+ORDER BY last_answered_at DESC, question_number, participant;
+```
+
+> A participant who submitted more than once will show `attempts > 1` with the evolution from `first_answer` to `last_answer`.
+
+---
+
+## 7. Lab 1 Live Order Rate
 
 Orders and revenue per minute, most recent windows shown first.
 Confirms the Lab 1 data generator is running and quantifies throughput.

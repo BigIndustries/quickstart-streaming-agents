@@ -34,7 +34,7 @@ resource "confluent_flink_statement" "quiz_answers_table" {
   }
 
   statement_name = "create-table-quiz-answers"
-  statement      = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`quiz_answers` ( participant STRING, question_number STRING, answer STRING );"
+  statement      = "CREATE TABLE IF NOT EXISTS `${data.terraform_remote_state.core.outputs.confluent_environment_display_name}`.`${data.terraform_remote_state.core.outputs.confluent_kafka_cluster_display_name}`.`quiz_answers` ( participant STRING, question_number STRING, answer STRING, answer_ts TIMESTAMP_LTZ(3) METADATA FROM 'timestamp' );"
 
   properties = {
     "sql.current-catalog"  = data.terraform_remote_state.core.outputs.confluent_environment_display_name
