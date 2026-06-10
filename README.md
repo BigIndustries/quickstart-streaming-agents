@@ -107,9 +107,7 @@ uv run setup
 ```bash
 uv run user
 ```
-> ⚠️
-> 
-> `uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
+> ⚠️ `uv run user` creates a personal service account, API keys, Kafka ACLs, and Flink tables — all namespaced under a prefix derived from the participant's Confluent Cloud email. The organizer must complete `uv run setup` before any participant can run `uv run user`.
 
 </details>
 

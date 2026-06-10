@@ -22,17 +22,13 @@ winget install astral-sh.uv Git.Git Hashicorp.Terraform ConfluentInc.Confluent-C
 
 ### API keys & access
 
-> ℹ️ NOTE
->
-> The credentials below are not required in instructor-led workshops — they will be provided for you.
+> ℹ️ The credentials below are not required in instructor-led workshops — they will be provided for you.
 
 - **LLM Access:** AWS Bedrock API keys **OR** Azure OpenAI endpoint + API key
   - No AWS/Azure account required - just the LLM API credentials!
   - **Easy key creation:** Run `uv run api-keys create` to quickly generate ready-to-use credentials
 
-> ⚠️
->
-> **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
+> ⚠️ **AWS Bedrock Users:** You must request access to Claude Sonnet 4.5 by filling out an Anthropic use case form. Visit the [Model Catalog](https://console.aws.amazon.com/bedrock/home#/model-catalog), select Claude Sonnet 4.5, open it in the Playground, and send a message - the form will appear automatically.
 
 - **Remote MCP server backend:** Lab 1 calls a remote MCP server for HTTP fetch and email send. `uv run setup` will prompt you to choose:
   - **Confluent-hosted remote MCP server (Recommended)** — No setup on your end; obtain a token by asking your presenter, or, if you're a Confluent employee, see `go/mcp-keys` or `#help-tmm`.
@@ -60,9 +56,7 @@ LATERAL TABLE(ML_PREDICT('llm_textgen_model', question, MAP['debug', 'true'])) a
 
 #### Test Query 2: LLM Tool Calling Model
 
-> ⚠️
->
-> Don't forget to add the email address where you want to receive the test email, to the query below.
+> ⚠️ Don't forget to add the email address where you want to receive the test email, to the query below.
 
 ```sql
 SELECT
@@ -94,9 +88,7 @@ Begin generating data with the following command:
 uv run lab1_datagen --local
 ```
 
-> ℹ️
->
-> Keep this command running in your terminal — it produces one order every 2 minutes. Proceed with the lab while it runs.
+> ℹ️ Keep this command running in your terminal — it produces one order every 2 minutes. Proceed with the lab while it runs.
 
 The data generator creates three typical ecommerce data streams:
 
@@ -123,7 +115,7 @@ JOIN customers c ON o.customer_id = c.customer_id
 JOIN products p ON o.product_id = p.product_id;
 ```
 
-> ℹ️ NOTE: Leave the query running so that it runs continuously.
+> ℹ️ Leave the query running so that it runs continuously.
 
 ## 4. Run `CREATE TOOL` and `CREATE AGENT`
 
@@ -176,9 +168,7 @@ WITH (
 
 The agent will take `enriched_orders` as input and process each order in real time as it is generated. To run the agent continuously, we'll execute it as part of a **Flink job**. Provide a **user prompt** to guide how the agent processes each incoming enriched order, and create a new table named `price_match_results` to store the agent's evaluation results.
 
-> ⚠️
->
-> Don't forget to modify the line beginning with `EMAIL RECIPIENT:` in the query below to include the email address where you want the price matching emails sent!
+> ⚠️ Don't forget to modify the line beginning with `EMAIL RECIPIENT:` in the query below to include the email address where you want the price matching emails sent!
 
 ```sql
 CREATE TABLE price_match_results AS
@@ -259,9 +249,7 @@ SELECT * FROM price_match_results;
 
 <br>
 
-> ℹ️
-> 
-> The organizer is already generating data into the shared `orders`, `customers`, and `products` topics. 
+> ℹ️ The organizer is already generating data into the shared `orders`, `customers`, and `products` topics. 
 > All resources you now onwards create must be prefixed with your workshop username to avoid conflicts with other participants.
 >
 > Your username prefix was shown when you ran `uv run user` (e.g. `matthias_`). Replace `{username}` throughout the queries below with your own prefix.
@@ -284,7 +272,7 @@ JOIN customers c ON o.customer_id = c.customer_id
 JOIN products p ON o.product_id = p.product_id;
 ```
 
-> ℹ️ NOTE: Leave the query running so that it runs continuously.
+> ℹ️ Leave the query running so that it runs continuously.
 
 ## 4. Run `CREATE TOOL` and `CREATE AGENT`
 
@@ -333,9 +321,7 @@ WITH (
 
 Create your prefixed results table. All created objects read from the shared source topics and write to your own namespaced tables.
 
-> ⚠️
->
-> Don't forget to replace `{username}` with your workshop username prefix **and** replace `<<YOUR-EMAIL-ADDRESS-HERE>>` with your email address.
+> ⚠️ Don't forget to replace `{username}` with your workshop username prefix **and** replace `<<YOUR-EMAIL-ADDRESS-HERE>>` with your email address.
 
 ```sql
 CREATE TABLE {username}_price_match_results AS
