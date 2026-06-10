@@ -93,7 +93,7 @@ The file is saved as `assets/md/<page-slug>.md`.
 **Step 2 — Publish it to the knowledge base**
 
 ```bash
-uv run publish-docs --doc-dir assets/md/
+uv run publish-docs --docs-dir assets/md/
 ```
 
 This publishes all Markdown files in `assets/md/` (including the one you just added) to the `documents` Kafka topic. Within a minute, the document will be embedded, indexed in MongoDB, and available for vector search for the RAG system.
