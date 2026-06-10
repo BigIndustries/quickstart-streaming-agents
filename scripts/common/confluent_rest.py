@@ -16,8 +16,11 @@ _FLINK_POLL_INTERVAL = 3
 _FLINK_POLL_TIMEOUT = 180
 
 
-def _request(method, url, api_key, api_secret, body=None, allow_409=False):
-    """Make an authenticated HTTP request. Exits on error (unless 409 and allow_409=True)."""
+_PERMISSION_DENIED = object()  # sentinel returned when allow_403=True and server returns 403
+
+
+def _request(method, url, api_key, api_secret, body=None, allow_409=False, allow_403=False):
+    """Make an authenticated HTTP request. Exits on error (unless 409/allow_409 or 403/allow_403)."""
     resp = requests.request(
         method,
         url,
@@ -28,6 +31,8 @@ def _request(method, url, api_key, api_secret, body=None, allow_409=False):
     )
     if allow_409 and resp.status_code == 409:
         return None  # already exists
+    if allow_403 and resp.status_code == 403:
+        return _PERMISSION_DENIED
     if not resp.ok:
         print(f"\nHTTP {resp.status_code} {method} {url}", file=sys.stderr)
         print(resp.text[:400], file=sys.stderr)
@@ -39,8 +44,8 @@ def cloud_api(method, path, api_key, api_secret, body=None, allow_409=False):
     return _request(method, f"{CONFLUENT_API}{path}", api_key, api_secret, body, allow_409)
 
 
-def kafka_rest(method, path, rest_endpoint, kafka_key, kafka_secret, body=None, allow_409=False):
-    return _request(method, f"{rest_endpoint.rstrip('/')}{path}", kafka_key, kafka_secret, body, allow_409)
+def kafka_rest(method, path, rest_endpoint, kafka_key, kafka_secret, body=None, allow_409=False, allow_403=False):
+    return _request(method, f"{rest_endpoint.rstrip('/')}{path}", kafka_key, kafka_secret, body, allow_409, allow_403)
 
 
 def flink_rest(method, path, flink_endpoint, flink_key, flink_secret, body=None, allow_409=False):
@@ -132,24 +137,45 @@ def create_kafka_acls(username, sa_id, cluster_id, rest_endpoint, admin_kafka_ke
         ("TOPIC",   "search_results_response","LITERAL",  "READ"),
         ("TOPIC",   "search_results_response","LITERAL",  "DESCRIBE"),
     ]
-    for resource_type, resource_name, pattern_type, operation in entries:
-        kafka_rest(
-            "POST",
-            f"/kafka/v3/clusters/{cluster_id}/acls",
-            rest_endpoint,
-            admin_kafka_key,
-            admin_kafka_secret,
-            {
-                "resource_type": resource_type,
-                "resource_name": resource_name,
-                "pattern_type": pattern_type,
-                "principal": f"User:{sa_id}",
-                "host": "*",
-                "operation": operation,
-                "permission": "ALLOW",
-            },
-            allow_409=True,
-        )
+
+    # Confluent Cloud RBAC permissions for a newly-created Kafka key can take a few seconds
+    # to propagate, so retry with backoff if the cluster returns 403.
+    for attempt in range(4):
+        if attempt > 0:
+            wait = 5 * attempt  # 5s, 10s, 15s
+            print(f"  Kafka key permissions not yet active, waiting {wait}s and retrying...")
+            time.sleep(wait)
+
+        blocked = False
+        for resource_type, resource_name, pattern_type, operation in entries:
+            result = kafka_rest(
+                "POST",
+                f"/kafka/v3/clusters/{cluster_id}/acls",
+                rest_endpoint,
+                admin_kafka_key,
+                admin_kafka_secret,
+                {
+                    "resource_type": resource_type,
+                    "resource_name": resource_name,
+                    "pattern_type": pattern_type,
+                    "principal": f"User:{sa_id}",
+                    "host": "*",
+                    "operation": operation,
+                    "permission": "ALLOW",
+                },
+                allow_409=True,
+                allow_403=True,
+            )
+            if result is _PERMISSION_DENIED:
+                blocked = True
+                break
+
+        if not blocked:
+            break
+    else:
+        print("\nError: Cannot create Kafka ACLs — permission denied after retries.", file=sys.stderr)
+        sys.exit(1)
+
     print(f"  ✓ Kafka ACLs created (prefix: {prefix})")
 
 
