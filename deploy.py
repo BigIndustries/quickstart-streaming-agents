@@ -119,76 +119,31 @@ def _flush_pending_writes(creds_file) -> None:
         sys.exit(1)
 
 
-def _grant_workshop_permissions(env_id: str, cluster_id: str) -> None:
-    """Grant EnvironmentAdmin + CloudClusterAdmin to all org members.
-
-    EnvironmentAdmin covers Schema Registry access within the environment.
-    CloudClusterAdmin covers Kafka topic/ACL management on the cluster.
-    Together these are sufficient for participants to run uv run user without
-    needing OrganizationAdmin.
-    """
-    import json as _json
+def _print_participant_handout(creds: dict, env_id: str, cluster_id: str) -> None:
+    """Print the details participants need to run `uv run user`."""
     try:
         r = subprocess.run(
-            ["confluent", "iam", "user", "list", "--output", "json"],
+            ["confluent", "organization", "describe", "--output", "json"],
             capture_output=True, text=True, check=True,
         )
-        print(f"  Raw user list output: {r.stdout[:500]!r}")
-        raw = _json.loads(r.stdout)
-        # Handle both array and {"users": [...]} response shapes
-        if isinstance(raw, list):
-            users = raw
-        elif isinstance(raw, dict):
-            users = raw.get("users") or raw.get("data") or list(raw.values())[0] if raw else []
-        else:
-            users = []
-    except Exception as exc:
-        print(f"  Warning: could not list org users: {exc}")
-        return
+        import json as _json
+        org_id = _json.loads(r.stdout).get("id", "")
+    except Exception:
+        org_id = ""
 
-    print(f"  Found {len(users)} org user(s).")
-    if users:
-        print(f"  User record sample keys: {list(users[0].keys())}")
+    cloud_key    = creds.get("TF_VAR_confluent_cloud_api_key", "")
+    cloud_secret = creds.get("TF_VAR_confluent_cloud_api_secret", "")
 
-    granted = already = failed = 0
-    for user in users:
-        user_id = (
-            user.get("id")
-            or user.get("Id")
-            or user.get("resource_id")
-            or user.get("ResourceId")
-            or ""
-        )
-        if not user_id:
-            print(f"  Warning: could not extract ID from user record: {user}")
-            continue
-        r_env = subprocess.run(
-            ["confluent", "iam", "rbac", "role-binding", "create",
-             "--principal", f"User:{user_id}", "--role", "EnvironmentAdmin",
-             "--environment", env_id],
-            capture_output=True, text=True,
-        )
-        r_cluster = subprocess.run(
-            ["confluent", "iam", "rbac", "role-binding", "create",
-             "--principal", f"User:{user_id}", "--role", "CloudClusterAdmin",
-             "--environment", env_id, "--cloud-cluster", cluster_id],
-            capture_output=True, text=True,
-        )
-        combined = (r_env.stderr + r_env.stdout + r_cluster.stderr + r_cluster.stdout).lower()
-        if r_env.returncode == 0 or r_cluster.returncode == 0:
-            granted += 1
-        elif "already exists" in combined:
-            already += 1
-        else:
-            failed += 1
-            print(f"  Failed for {user_id}:")
-            if r_env.returncode != 0:
-                print(f"    EnvironmentAdmin: {(r_env.stderr or r_env.stdout).strip()}")
-            if r_cluster.returncode != 0:
-                print(f"    CloudClusterAdmin: {(r_cluster.stderr or r_cluster.stdout).strip()}")
-
-    print(f"  ✓ Workshop permissions granted: {granted} users updated, {already} already set" +
-          (f", {failed} failed" if failed else ""))
+    print("\n" + "=" * 60)
+    print("SHARE WITH WORKSHOP PARTICIPANTS")
+    print("=" * 60)
+    print(f"  Confluent Organisation ID : {org_id or '(run: confluent organization describe)'}")
+    print(f"  Confluent Environment ID  : {env_id}")
+    print(f"  Workshop Cloud API Key    : {cloud_key or '(see TF_VAR_confluent_cloud_api_key in credentials.env)'}")
+    print(f"  Workshop Cloud API Secret : {cloud_secret or '(see TF_VAR_confluent_cloud_api_secret in credentials.env)'}")
+    print()
+    print("Participants run:  uv run user")
+    print("=" * 60)
 
 
 def _print_write_error(exc) -> None:
@@ -826,14 +781,7 @@ def main():
             env_id_out     = core_outputs.get("confluent_environment_id", "")
             cluster_id_out = core_outputs.get("confluent_kafka_cluster_id", "")
             if env_id_out and cluster_id_out:
-                grant = (
-                    input(
-                        "\nGrant workshop permissions (EnvironmentAdmin + CloudClusterAdmin) "
-                        "to all org members so participants can run `uv run user`? (y/n) [default: y]: "
-                    ).strip().lower() or "y"
-                )
-                if grant == "y":
-                    _grant_workshop_permissions(env_id_out, cluster_id_out)
+                _print_participant_handout(creds, env_id_out, cluster_id_out)
         except Exception as e:
             print(f"\n⚠ Could not read Terraform outputs: {e}")
 

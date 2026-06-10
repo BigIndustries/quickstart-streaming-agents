@@ -58,91 +58,55 @@ def generate_confluent_api_keys(
     Returns:
         Tuple of (api_key, api_secret) or (None, None) if generation fails
     """
+    import json as _json
     try:
         timestamp = str(int(time.time()))[-6:]
         sa_name = f"{prefix}-setup-sa-{timestamp}"
 
         print(f"Creating service account: {sa_name}...")
         sa_result = subprocess.run(
-            [
-                "confluent",
-                "iam",
-                "service-account",
-                "create",
-                sa_name,
-                "--description",
-                f"Service account for {prefix} streaming agents setup",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
+            ["confluent", "iam", "service-account", "create", sa_name,
+             "--description", f"Service account for {prefix} streaming agents setup",
+             "--output", "json"],
+            capture_output=True, text=True, check=True,
         )
-
-        sa_id = None
-        for line in sa_result.stdout.split("\n"):
-            if "| ID" in line and "sa-" in line:
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) >= 2 and "ID" in parts[0]:
-                    sa_id = parts[1]
-                    break
-
+        sa_data = _json.loads(sa_result.stdout)
+        sa_id = sa_data.get("id") or sa_data.get("Id") or sa_data.get("resource_id") or ""
         if not sa_id:
-            print("Error: Failed to extract service account ID.")
+            print(f"Error: could not extract SA ID from: {sa_result.stdout[:200]}")
             return None, None
 
-        print("Creating API key with Cloud Resource Management scope...")
-        key_result = subprocess.run(
-            [
-                "confluent",
-                "api-key",
-                "create",
-                "--service-account",
-                sa_id,
-                "--resource",
-                "cloud",
-                "--description",
-                f"{prefix} setup key",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
+        print(f"  SA id: {sa_id}")
+        print("Assigning OrganizationAdmin role...")
+        role_result = subprocess.run(
+            ["confluent", "iam", "rbac", "role-binding", "create",
+             "--principal", f"User:{sa_id}", "--role", "OrganizationAdmin"],
+            capture_output=True, text=True,
         )
+        if role_result.returncode != 0:
+            msg = (role_result.stderr or role_result.stdout).strip()
+            print(f"Error: OrganizationAdmin role assignment failed: {msg}")
+            print("The service account will not have sufficient permissions for participant setup.")
+            return None, None
+        print("  ✓ OrganizationAdmin assigned")
 
-        api_key = api_secret = None
-        for line in key_result.stdout.split("\n"):
-            if "API Key" in line and "|" in line:
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) >= 2 and "API Key" in parts[0]:
-                    api_key = parts[1]
-            elif "API Secret" in line and "|" in line:
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) >= 2 and "API Secret" in parts[0]:
-                    api_secret = parts[1]
+        print("Creating Cloud API key...")
+        key_result = subprocess.run(
+            ["confluent", "api-key", "create",
+             "--service-account", sa_id, "--resource", "cloud",
+             "--description", f"{prefix} setup key",
+             "--output", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        key_data = _json.loads(key_result.stdout)
+        api_key = key_data.get("key") or key_data.get("api_key") or ""
+        api_secret = key_data.get("secret") or key_data.get("api_secret") or ""
+        if not api_key or not api_secret:
+            print(f"Error: could not extract API key from: {key_result.stdout[:200]}")
+            return None, None
 
-        if api_key and api_secret:
-            print("Assigning OrganizationAdmin role...")
-            try:
-                subprocess.run(
-                    [
-                        "confluent",
-                        "iam",
-                        "rbac",
-                        "role-binding",
-                        "create",
-                        "--principal",
-                        f"User:{sa_id}",
-                        "--role",
-                        "OrganizationAdmin",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                print("✓ API keys generated successfully!")
-                return api_key, api_secret
-            except subprocess.CalledProcessError:
-                print("Warning: Role assignment failed, but API keys were created.")
-                return api_key, api_secret
+        print("✓ API keys generated successfully!")
+        return api_key, api_secret
 
     except subprocess.CalledProcessError as e:
         print(f"Error generating API keys: {e}")
